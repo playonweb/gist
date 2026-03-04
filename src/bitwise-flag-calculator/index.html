@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitwise Flag Calculator</title>
+    <link rel="icon" href="https://playonweb.org/favicon.ico" type="image/x-icon">
+
+    <meta name="keywords"
+        content="bitwise, flag calculator, binary, bitwise operations, flags, power calculation, Vue.js, Tailwind CSS, web development">
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Bitwise Flag Calculator">
+    <meta property="og:description" content="A simple tool to calculate bitwise flags and binary operations.">
+    <!-- <meta property="og:image" content="https://playonweb.org/path-to-your-og-image.png"> -->
+    <meta property="og:url" content="https://bitwise-flag-calculator.playonweb.org">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Bitwise Flag Calculator">
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+        integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+
+<body class="bg-gray-100 py-12">
+    <div id="app" class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg space-y-8">
+        <!-- Bitwise Flag Calculator -->
+        <h2 class="text-2xl font-bold text-center">
+            Bitwise Flag Calculator
+            <!-- reset icon -->
+            <i @click="resetFlags" class="fas fa-red
+            fa-sync-alt cursor-pointer text-blue-500 hover:text-blue-600 transition duration-200"></i>
+        </h2>
+       
+        <div class="space-y-4">
+            <!-- Select All / Unselect All Buttons -->
+            <div class="text-left space-x-4">
+                <button @click="selectAll" class="text-gray-500 hover:text-gray-600">
+                    Select All
+                </button>
+                <button @click="unselectAll" class="text-gray-500 hover:text-gray-600">
+                    Unselect All
+                </button>
+                <button @click="loadExample" class="text-gray-500 hover:text-gray-600">
+                    Load Example
+                </button>
+            </div>
+            <label v-for="(value, key) in flags" :key="key" class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <!-- Checkbox -->
+                    <input type="checkbox" v-model="selectedFlags" :value="value" class="w-6 h-6">
+                    <span class="text-lg font-medium">{{ key }}</span>
+
+                    <!-- Input for dynamic flag value -->
+                    <input type="number" v-model="flags[key]" class="w-24 p-2 border rounded-lg text-center" :min="1"
+                        :step="1" placeholder="Enter 2^x">
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm text-gray-500">= {{ value.toString(2).padStart(4, '0') }}</span>
+                    <button @click="checkFlag(key)"
+                        class="w-8 h-8 flex justify-center items-center rounded-full bg-gray-200 hover:bg-gray-300">
+                        <i class="fas fa-divide text-green-500 -rotate-45"></i>
+                    </button>
+                    <button class="w-6 h-6 text-red-500 hover:text-red-700" @click="handleTrash(key)">
+                        <i :class="isTrash[key] ? 'fa-solid fa-xmark' : 'fas fa-trash-alt'"></i>
+                    </button>
+                </div>
+            </label>
+        </div>
+
+        <!-- Add New Flag -->
+        <div class="flex items-center space-x-4 mt-6">
+            <input v-model="newFlagName" type="text" placeholder="Flag name" class="w-32 p-2 border rounded-lg">
+            <input v-model="newFlagValue" type="number" min="1" placeholder="Value (2^x)"
+                class="w-32 p-2 border rounded-lg text-center">
+            <button @click="addFlag" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                <i class="fas fa-plus"></i>
+                Add Flag
+            </button>
+        </div>
+
+        <!-- Display Flags -->
+        <div class="mt-6 p-4 bg-gray-200 rounded-lg text-center">
+            <p class="font-mono text-xl">Current Flags Value: <span class="font-bold">{{ computedFlags }}</span></p>
+            <p class="text-sm text-gray-600">(Binary: {{ computedFlags.toString(2).padStart(4, '0') }})</p>
+
+            <!-- Flag Check Result -->
+            <div v-if="checkResult !== null" class="text-center">
+                <p :class="{'text-green-600': checkResult, 'text-red-600': !checkResult}" class="font-mono text-sm">
+                    <span class="font-bold">{{ checkFlagName }}({{ decimalOperation }})</span>:
+                    <span>{{ checkResult ? 'Flag is set' : 'Flag is not set' }}</span>
+                </p>
+                <p class="font-mono text-sm">
+                    Binary Operation: {{ binaryOperation }}
+                </p>
+            </div>
+        </div>
+
+        <!-- Check Flags by Number -->
+        <h3 class="text-xl text-center font-semibold">Check Flags by Number</h3>
+        <div class="flex flex-col justify-center items-center space-x-4">
+            <div class="flex justify-center items-center space-x-4">
+                <input v-model="flagNumberInput" type="number" placeholder="Enter flag number"
+                    class="w-32 p-2 border rounded-lg text-center">
+                <button @click="getPossibleFlagsByNumber"
+                    class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
+                    Get Possible Flags
+                </button>
+            </div>
+            <div class="flex items-center space-x-2 mt-2">
+                <span class="text-sm text-gray-500">Possible Flags:</span>
+                <span v-for="flag in possibleFlags" :key="flag" class="bg-gray-200 px-2 py-1 rounded-lg text-sm">{{ flag
+                    }}</span>
+            </div>
+        </div>
+
+        <div class="mt-6 p-4 bg-gray-200 rounded-lg text-center">
+            <h3 class="text-xl font-semibold">All Possible Flags</h3>
+            <div class="max-h-60 overflow-y-auto border rounded-lg mt-2">
+                <table class="w-full border-collapse">
+                    <thead>
+                        <tr class="bg-gray-300">
+                            <th class="p-2 border">Decimal</th>
+                            <th class="p-2 border">Binary</th>
+                            <th class="p-2 border">Flags</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="num in allFlags" :key="num" class="odd:bg-white even:bg-gray-100">
+                            <td class="p-2 border">{{ num }}</td>
+                            <td class="p-2 border">{{ num.toString(2).padStart(4, '0') }}</td>
+                            <td class="p-2 border">
+                                <!-- {{ getFlagsForNumber(num).join(', ') }} -->
+                                <span v-for="flag in getFlagsForNumber(num)" :key="flag"
+                                    class="bg-gray-200 px-2 py-1 rounded-lg text-sm">{{ flag }}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- divider line -->
+        <div class="border-b border-gray-300"></div>
+
+        <h3 class="text-xl text-center font-semibold mb-4">Utility</h3>
+        <!-- Power Calculation Utility -->
+        <div class="bg-blue-200 p-6 rounded-xl mt-6 text-center">
+            <div class="flex justify-center items-center space-x-4">
+                <span class="text-2xl font-bold">2^x </span>
+                <input type="number" v-model="powerInput" class="w-24 p-2 border rounded-lg text-center"
+                    placeholder="Enter x" min="0">
+                <span class="text-2xl font-bold">= {{ calculatePower }}</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    isTrash: {
+                        ...Array(4).fill(false)
+                    },
+                    flags: this.getFlagsFromUrl() || this.getDefaultFlags(),
+                    selectedFlags: [],
+                    checkResult: null,
+                    checkFlagName: '',
+                    binaryOperation: '',
+                    decimalOperation: '',
+                    powerInput: 0,
+                    newFlagName: '',
+                    flagNumberInput: 0,  // Flag number input
+                    possibleFlags: [], // To display set flags message
+                };
+            },
+            computed: {
+                totalFlagsSum() {
+                    return Object.values(this.flags).reduce((acc, val) => acc + val, 0);
+                },
+                computedFlags() {
+                    return this.selectedFlags.reduce((acc, val) => acc | val, 0);
+                },
+                calculatePower() {
+                    return Math.pow(2, this.powerInput);
+                },
+                newFlagValue() {
+                    return Math.pow(2, Math.ceil(Math.log2(this.totalFlagsSum + 1)));
+                },
+                allFlags() {
+                    return Array.from({ length: this.totalFlagsSum + 1 }, (_, i) => i);
+                }
+            },
+            methods: {
+                getFlagsFromUrl() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const flags = {};
+                    urlParams.forEach((value, key) => {
+                        flags[key] = parseInt(value);
+                    });
+                    return Object.keys(flags).length ? flags : null; // Return null if no flags are in URL
+                },
+                getDefaultFlags() {
+                    return {
+                        Flag1: 1,      // 0001
+                        Flag2: 2,      // 0010
+                        Flag3: 4,      // 0100
+                        Flag4: 8       // 1000
+                    };
+                },
+                updateUrlParams() {
+                    const urlParams = new URLSearchParams();
+                    Object.entries(this.flags).forEach(([key, value]) => {
+                        urlParams.set(key, value);
+                    });
+                    // Update the URL without reloading the page
+                    window.history.pushState({}, '', `${window.location.pathname}?${urlParams.toString()}`);
+                },
+                resetFlags() {
+                    this.selectedFlags = [];
+                    this.checkResult = null;
+                    this.checkFlagName = '';
+                    this.binaryOperation = '';
+                    this.decimalOperation = '';
+                    this.possibleFlags = '';
+                    this.isTrash = {
+                        ...Array(this.flags.length).fill(false)
+                    };
+                },
+                checkFlag(flagKey) {
+                    const flagValue = this.flags[flagKey];
+                    this.checkResult = (this.computedFlags & flagValue) === flagValue;
+                    this.checkFlagName = flagKey;
+
+                    this.binaryOperation = `${this.computedFlags.toString(2).padStart(4, '0')} & ${flagValue.toString(2).padStart(4, '0')} = ${(this.computedFlags & flagValue).toString(2).padStart(4, '0')}`;
+                    this.decimalOperation = this.computedFlags & flagValue;
+                },
+                addFlag() {
+                    if (this.newFlagName && this.newFlagValue) {
+                        const flagValue = parseInt(this.newFlagValue);
+                        if (!this.flags[this.newFlagName]) {
+                            this.flags[this.newFlagName] = flagValue;
+                        }
+                        this.newFlagName = '';
+                        this.newFlagValue = 1; // Reset after adding
+                    }
+                },
+                removeFlag(flagKey) {
+                    delete this.flags[flagKey];
+                },
+                handleTrash(flagKey) {
+                    if (this.isTrash[flagKey]) {
+                        this.removeFlag(flagKey);
+                    }
+                    this.isTrash[flagKey] = !this.isTrash[flagKey];
+                },
+                isFlagSet(flagKey) {
+                    const flagValue = this.flags[flagKey];
+                    return (this.computedFlags & flagValue) === flagValue;
+                },
+                getPossibleFlagsByNumber() {
+                    const flagNumber = parseInt(this.flagNumberInput);
+                    this.possibleFlags = [];
+                    for (const [key, value] of Object.entries(this.flags)) {
+                        if ((flagNumber & value) === value) {
+                            this.possibleFlags.push(key);
+                        }
+                    }
+                },
+                getFlagsForNumber(num) {
+                    return Object.keys(this.flags).filter(flag => (num & this.flags[flag]) === this.flags[flag]);
+                },
+                selectAll() {
+                    this.selectedFlags = Object.values(this.flags);
+                },
+                unselectAll() {
+                    this.selectedFlags = [];
+                },
+                loadExample() {
+                    if (confirm('Do you want to load the example flags?')) {
+                        this.flags = {
+                            Flag1: 1,
+                            Flag2: 2,
+                            Flag3: 4,
+                            Flag4: 8
+                        };
+                    }
+                }
+            },
+            mounted() {
+            },
+            watch: {
+                flags: {
+                    handler() {
+                        this.updateUrlParams();
+                    },
+                    deep: true
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>
