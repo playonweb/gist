@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brotli Text Compression Tool</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Using importmap to define our module locations -->
+  <script type="importmap">
+    {
+      "imports": {
+        "vue": "https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.esm-browser.prod.js",
+        "brotli-wasm": "https://cdn.jsdelivr.net/npm/brotli-wasm@3.0.1/index.web.js"
+      }
+    }
+  </script>
+</head>
+<body class="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-800">
+  <div id="app" class="w-full max-w-5xl"></div>
+
+  <script type="module">
+    import { createApp, ref } from 'vue';
+    import brotliPromise from 'brotli-wasm';
+    
+    // Initialize the WebAssembly module
+    // The default export is a Promise that resolves to the brotli instance.
+    const resolvedBrotli = await brotliPromise;
+    // Depending on the CDN's ESM wrapper, the actual methods might be on .default
+    const brotli = resolvedBrotli.default || resolvedBrotli;
+
+    // Composable for handling Brotli compression and decompression
+    function useBrotli() {
+      const enc = new TextEncoder();
+      const dec = new TextDecoder();
+
+      const compress = async (text) => {
+        const input = enc.encode(text);
+        const out = brotli.compress(input, { quality: 11 });
+        
+        // More robust Base64 encoding for larger Uint8Arrays
+        const binString = Array.from(out, (byte) => String.fromCharCode(byte)).join('');
+        return btoa(binString);
+      };
+
+      const decompress = async (b64) => {
+        const bin = atob(b64.trim());
+        const u8 = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) {
+          u8[i] = bin.charCodeAt(i);
+        }
+        const out = brotli.decompress(u8);
+        return dec.decode(out);
+      };
+
+      return { compress, decompress };
+    }
+
+    createApp({
+      setup() {
+        const text = ref('Hello, Brotli compression!');
+        const compressed = ref('');
+        const error = ref(null);
+        const { compress, decompress } = useBrotli();
+
+        const compressText = async () => {
+          try {
+            compressed.value = '';
+            error.value = null;
+            if (!text.value) return;
+            compressed.value = await compress(text.value);
+          } catch (err) {
+            error.value = err.message || 'An error occurred during compression.';
+          }
+        };
+
+        const decompressText = async () => {
+          try {
+            text.value = '';
+            error.value = null;
+            if (!compressed.value) return;
+            text.value = await decompress(compressed.value);
+          } catch (err) {
+            error.value = err.message || 'An error occurred during decompression. Make sure the input is a valid Base64 compressed string.';
+          }
+        };
+
+        return { text, compressed, error, compressText, decompressText };
+      },
+      template: `
+        <section class="bg-white shadow-xl rounded-3xl p-6 md:p-10 flex flex-col gap-8" aria-labelledby="compression-tool-heading">
+          <div class="text-center space-y-2">
+            <h1 id="compression-tool-heading" class="text-3xl font-bold text-slate-900 tracking-tight">
+              Brotli Compression Tool
+            </h1>
+            <p class="text-slate-500">Compress and decompress text securely entirely within your browser.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Raw Text Input -->
+            <div class="flex flex-col gap-3">
+              <label for="input-text" class="text-sm font-semibold text-slate-700">
+                Raw Text
+              </label>
+              <textarea
+                v-model="text"
+                id="input-text"
+                placeholder="Enter text to compress..."
+                class="w-full h-56 p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white outline-none transition-all resize-none font-mono text-sm"
+              ></textarea>
+              <div class="flex justify-between items-center px-1">
+                <span class="text-xs font-medium text-slate-400">Length: {{ text?.length || 0 }} chars</span>
+                <button
+                  @click="compressText"
+                  class="bg-emerald-500 text-white py-2 px-6 rounded-xl hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-sm hover:shadow active:scale-95"
+                  :disabled="!text"
+                >
+                  Compress &rarr;
+                </button>
+              </div>
+            </div>
+
+            <!-- Compressed Output -->
+            <div class="flex flex-col gap-3">
+              <label for="compressed-text" class="text-sm font-semibold text-slate-700">
+                Compressed Output (Base64)
+              </label>
+              <textarea
+                v-model="compressed"
+                id="compressed-text"
+                placeholder="Compressed Base64 data will appear here..."
+                class="w-full h-56 p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all resize-none font-mono text-sm break-all"
+              ></textarea>
+              <div class="flex justify-between items-center px-1">
+                <span class="text-xs font-medium text-slate-400">Length: {{ compressed?.length || 0 }} chars</span>
+                <button
+                  @click="decompressText"
+                  class="bg-blue-500 text-white py-2 px-6 rounded-xl hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-sm hover:shadow active:scale-95"
+                  :disabled="!compressed"
+                >
+                  &larr; Decompress
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Error Alert -->
+          <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl flex items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+            <div class="flex gap-3 items-center">
+              <svg class="w-6 h-6 shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <div>
+                <p class="font-semibold text-sm">Error</p>
+                <p class="text-sm opacity-90">{{ error }}</p>
+              </div>
+            </div>
+            <button @click="error = null" class="text-red-500 hover:text-red-700 focus:outline-none p-1 rounded-lg hover:bg-red-100 transition-colors" aria-label="Dismiss error">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+        </section>
+      `
+    }).mount('#app');
+  </script>
+</body>
+</html>
