@@ -1,0 +1,48 @@
+apps:
+  - title: "PlayIDE"
+    description: "Lightweight in-browser HTML, CSS, and JavaScript playground for quick prototyping and experiments."
+    category: "Developer Tools"
+    path: "https://ide.playonweb.org"
+    image: "https://placehold.co/600x400?text=PlayIDE"
+
+  - title: "Karya Sutra"
+    description: "Priority-based task manager focused on clarity, execution, and deep work."
+    category: "Productivity"
+    path: "https://karyasutra.playonweb.org"
+    image: "https://placehold.co/600x400?text=Karya+Sutra"
+
+  - title: "Untangled HTML"
+    description: "Tool to simplify and refactor complex HTML structures for better readability."
+    category: "Developer Tools"
+    path: "https://untangled.playonweb.org"
+    image: "https://placehold.co/600x400?text=Untangled"
+
+  - title: "Brotli Lab"
+    description: "Interactive Brotli compression playground to test and visualize compression ratios."
+    category: "Utilities"
+    path: "https://brotli.playonweb.org"
+    image: "https://placehold.co/600x400?text=Brotli+Lab"
+
+  - title: "JSON Inspector"
+    description: "Fast JSON formatter and validator with tree view and diff comparison."
+    category: "Developer Tools"
+    path: "https://json.playonweb.org"
+    image: "https://placehold.co/600x400?text=JSON+Inspector"
+
+  - title: "ColorCraft"
+    description: "Generate accessible color palettes and preview UI themes instantly."
+    category: "Design"
+    path: "https://colors.playonweb.org"
+    image: "https://placehold.co/600x400?text=ColorCraft"
+
+  - title: "Markdown Studio"
+    description: "Minimal markdown editor with live preview and export options."
+    category: "Writing"
+    path: "https://markdown.playonweb.org"
+    image: "https://placehold.co/600x400?text=Markdown+Studio"
+
+  - title: "Regex Arena"
+    description: "Test, debug, and benchmark regular expressions with real-time feedback."
+    category: "Developer Tools"
+    path: "https://regex.playonweb.org"
+    image: "https://placehold.co/600x400?text=Regex+Arena"
