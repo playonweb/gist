@@ -1,46 +1,105 @@
 <!DOCTYPE html>
 <html lang="en" class="antialiased text-gray-200 bg-gray-950">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gist Apps | App Directory</title>
-    
-    <!-- Minimized & Optimized External Libraries -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
-    
-    <!-- Custom Tailwind Config for Brand Colors -->
+
+    <link rel="icon" href="data:image/svg+xml,<svg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'><circle cx='50' cy='50' r='45' fill='none' stroke='%236366f1' stroke-width='5'/><path d='M50 15L85 50L50 85L15 50Z' fill='%236366f1' fill-opacity='0.2'/><text x='50' y='65' font-family='Arial' font-size='40' font-weight='bold' text-anchor='middle' fill='%236366f1'>G</text></svg>">
+
+    <!-- Application Logic -->
     <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: { brand: { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5' } }
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('appDirectory', () => ({
+                apps: [],
+                search: '',
+                category: '',
+                loading: true,
+                error: null,
+
+                async init() {
+                    try {
+                        const response = await fetch('apps.json');
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        this.apps = await response.json();
+
+                        // Sanitize categories to replace empty with "Uncategorized"
+                        this.apps = this.apps.map(app => ({
+                            ...app,
+                            category: app.category && app.category.trim() !== '' ? app.category.trim() : 'Uncategorized'
+                        }));
+                    } catch (e) {
+                        console.error('Failed to load apps:', e);
+                        this.error = 'Unable to load application directory. Run ./gist build first.';
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                get uniqueCategories() {
+                    const categories = this.apps.map(app => app.category).filter(Boolean);
+                    return [...new Set(categories)].sort();
+                },
+
+                get filteredApps() {
+                    return this.apps.filter(app => {
+                        const matchesSearch = app.title.toLowerCase().includes(this.search.toLowerCase()) ||
+                            app.description.toLowerCase().includes(this.search.toLowerCase());
+                        const matchesCategory = this.category === '' || app.category === this.category;
+                        return matchesSearch && matchesCategory;
+                    });
                 }
-            }
-        }
+            }));
+        });
     </script>
 
+    <!-- Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style type="text/tailwindcss">
+      @theme {
+        --color-clifford: #da373d;
+      }
+    </style>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
     <style>
-        [x-cloak] { display: none !important; }
+        [x-cloak] {
+            display: none !important;
+        }
+
         /* Smooth, hardware-accelerated transitions */
-        .app-card { transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s; }
-        .app-card:hover { transform: translateY(-4px); box-shadow: 0 10px 40px -10px rgba(99, 102, 241, 0.3); }
-        .glass-header { background: rgba(3, 7, 18, 0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+        .app-card {
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
+        }
+
+        .app-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 40px -10px rgba(99, 102, 241, 0.3);
+        }
+
+        .glass-header {
+            background: rgba(3, 7, 18, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
     </style>
 </head>
-<body x-data="appDirectory()" x-init="init()" class="min-h-screen flex flex-col selection:bg-brand-500 selection:text-white">
+
+<body x-data="appDirectory" class="min-h-screen flex flex-col selection:bg-brand-500 selection:text-white">
 
     <!-- Sticky Glass Header -->
     <header class="sticky top-0 z-50 glass-header border-b border-gray-800">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                
+
                 <!-- Logo/Title -->
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg">
+                    <div
+                        class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg">
                         <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                         </svg>
                     </div>
                     <h1 class="text-2xl font-bold tracking-tight">Gist <span class="text-brand-400">Play</span></h1>
@@ -52,22 +111,18 @@
                     <div class="relative w-full sm:w-64 md:w-80">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <svg class="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                                <path fill-rule="evenodd"
+                                    d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                                    clip-rule="evenodd" />
                             </svg>
                         </div>
-                        <input 
-                            type="text" 
-                            x-model="search" 
-                            placeholder="Search apps..." 
-                            class="block w-full pl-10 pr-3 py-2 border border-gray-700 rounded-xl leading-5 bg-gray-900/50 text-gray-300 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 sm:text-sm transition-colors"
-                        >
+                        <input type="text" x-model="search" placeholder="Search apps..."
+                            class="block w-full pl-10 pr-3 py-2 border border-gray-700 rounded-xl leading-5 bg-gray-900/50 text-gray-300 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 sm:text-sm transition-colors">
                     </div>
 
                     <!-- Category Filter -->
-                    <select 
-                        x-model="category" 
-                        class="block w-full sm:w-40 pl-3 pr-10 py-2 text-base border-gray-700 bg-gray-900/50 text-gray-300 focus:outline-none focus:ring-brand-500 focus:border-brand-500 sm:text-sm rounded-xl transition-colors cursor-pointer appearance-none border"
-                    >
+                    <select x-model="category"
+                        class="block w-full sm:w-40 pl-3 pr-10 py-2 text-base border-gray-700 bg-gray-900/50 text-gray-300 focus:outline-none focus:ring-brand-500 focus:border-brand-500 sm:text-sm rounded-xl transition-colors cursor-pointer appearance-none border">
                         <option value="">All Categories</option>
                         <template x-for="cat in uniqueCategories" :key="cat">
                             <option :value="cat" x-text="cat"></option>
@@ -81,12 +136,15 @@
 
     <!-- Main Content -->
     <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
-        
+
         <!-- Loading State -->
         <div x-show="loading" class="flex flex-col justify-center items-center py-20" x-cloak>
-            <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-brand-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-brand-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                </path>
             </svg>
             <p class="mt-4 text-gray-500 text-sm font-medium">Loading app directory...</p>
         </div>
@@ -95,48 +153,62 @@
         <div x-show="error" class="flex flex-col items-center justify-center py-20 px-4 text-center" x-cloak>
             <div class="bg-red-500/10 p-5 rounded-full mb-5 border border-red-500/20">
                 <svg class="w-12 h-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
             </div>
             <h3 class="text-xl font-bold text-white mb-2">Failed to load apps</h3>
             <p class="text-gray-400 max-w-md mx-auto mb-6" x-text="error"></p>
-            <button @click="loading = true; error = null; init()" class="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors font-medium border border-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500">
+            <button @click="loading = true; error = null; init()"
+                class="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors font-medium border border-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500">
                 Try Again
             </button>
         </div>
 
         <!-- Apps Grid -->
-        <div x-show="!loading && !error" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" x-cloak>
+        <div x-show="!loading && !error" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            x-cloak>
             <template x-for="app in filteredApps" :key="app.title">
-                <a :href="app.path" class="app-card group bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden flex flex-col focus:outline-none focus:ring-2 focus:ring-brand-500">
-                    
+                <a :href="app.path"
+                    class="app-card group bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden flex flex-col focus:outline-none focus:ring-2 focus:ring-brand-500">
+
                     <!-- App Image/Video Area -->
                     <div class="aspect-video w-full bg-gray-800 relative overflow-hidden border-b border-gray-800">
                         <template x-if="app.image">
-                            <img :src="app.image" :alt="app.title" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                            <img :src="app.image" :alt="app.title"
+                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
                         </template>
                         <template x-if="!app.image">
-                            <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900 group-hover:scale-105 transition-transform duration-500">
-                                <svg class="w-12 h-12 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                            <div
+                                class="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900 group-hover:scale-105 transition-transform duration-500">
+                                <svg class="w-12 h-12 text-gray-700" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                        d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                                 </svg>
                             </div>
                         </template>
-                        
+
                         <!-- Category Badge -->
-                        <div class="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-semibold bg-gray-900/80 backdrop-blur-sm text-brand-300 border border-gray-700/50" x-text="app.category"></div>
+                        <div class="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-semibold bg-gray-900/80 backdrop-blur-sm text-brand-300 border border-gray-700/50"
+                            x-text="app.category"></div>
                     </div>
 
                     <!-- App Content -->
                     <div class="p-5 flex flex-col flex-grow">
-                        <h3 class="text-lg font-bold text-white mb-2 group-hover:text-brand-400 transition-colors" x-text="app.title"></h3>
-                        <p class="text-sm text-gray-400 line-clamp-3 mb-4 flex-grow leading-relaxed" x-text="app.description"></p>
-                        
+                        <h3 class="text-lg font-bold text-white mb-2 group-hover:text-brand-400 transition-colors"
+                            x-text="app.title"></h3>
+                        <p class="text-sm text-gray-400 line-clamp-3 mb-4 flex-grow leading-relaxed"
+                            x-text="app.description"></p>
+
                         <!-- Open Button -->
-                        <div class="mt-auto pt-4 border-t border-gray-800 flex items-center justify-between text-brand-500 font-medium text-sm group-hover:text-brand-400 transition-colors">
+                        <div
+                            class="mt-auto pt-4 border-t border-gray-800 flex items-center justify-between text-brand-500 font-medium text-sm group-hover:text-brand-400 transition-colors">
                             <span>Launch Application</span>
-                            <svg class="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                            <svg class="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M14 5l7 7m0 0l-7 7m7-7H3" />
                             </svg>
                         </div>
                     </div>
@@ -147,7 +219,8 @@
         <!-- Empty Results State -->
         <div x-show="!loading && !error && filteredApps.length === 0" class="text-center py-20" x-cloak>
             <svg class="mx-auto h-12 w-12 text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <h3 class="text-lg font-medium text-gray-300">No applications found</h3>
             <p class="mt-1 text-sm text-gray-500">Try adjusting your search or filter criteria.</p>
@@ -155,49 +228,6 @@
 
     </main>
 
-    <!-- Application Logic -->
-    <script>
-        // Use a standard global function instead of waiting for the 'alpine:init' event listener
-        // to prevent race conditions during script loading and DOM parsing.
-        function appDirectory() {
-            return {
-                apps: [],
-                search: '',
-                category: '',
-                loading: true,
-                error: null,
-
-                async init() {
-                    try {
-                        const response = await fetch('apps.yaml');
-                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                        const yamlText = await response.text();
-                        
-                        const parsedData = jsyaml.load(yamlText);
-                        this.apps = parsedData.apps || [];
-                    } catch (e) {
-                        console.error('Failed to load apps:', e);
-                        this.error = 'Unable to load application directory. Make sure apps.yaml exists.';
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-
-                get uniqueCategories() {
-                    const categories = this.apps.map(app => app.category).filter(Boolean);
-                    return [...new Set(categories)].sort();
-                },
-
-                get filteredApps() {
-                    return this.apps.filter(app => {
-                        const matchesSearch = app.title.toLowerCase().includes(this.search.toLowerCase()) || 
-                                              app.description.toLowerCase().includes(this.search.toLowerCase());
-                        const matchesCategory = this.category === '' || app.category === this.category;
-                        return matchesSearch && matchesCategory;
-                    });
-                }
-            }
-        }
-    </script>
 </body>
+
 </html>

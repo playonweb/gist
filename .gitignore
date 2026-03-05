@@ -1,0 +1,17 @@
+# === Generated ===
+dist/
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# === Editor ===
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# === Misc ===
+*.log

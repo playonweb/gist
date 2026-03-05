@@ -1,0 +1,388 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# gist — Build & preview CLI for a GitHub Pages mini-app collection.
+#
+# Usage:
+#   ./gist build     Copy src/ → dist/, inject header/footer, generate apps.json.
+#   ./gist preview   Start a local HTTP server serving dist/.
+#   ./gist clean     Remove the dist/ directory.
+#
+# Architecture:
+#   - Source files in src/ are NEVER modified (except adding APP-META comments).
+#   - ./gist build copies src/ → dist/, then injects helpers/header.html and
+#     helpers/footer.html into every dist/<app>/index.html.
+#   - Metadata (Title, Description, Category, Status) is extracted from
+#     <!-- APP-META ... --> comment blocks in each app's source index.html.
+#   - Only apps with Status: published (or no Status field) are included in
+#     dist/apps.json. Draft/archived apps are skipped.
+#   - dist/apps.json is consumed by dist/index.html to build the directory grid.
+#
+# Dependencies: bash 4+, awk, sed, grep, find, cp, python3 (preview only)
+# ==============================================================================
+
+set -euo pipefail
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SRC_DIR="${SCRIPT_DIR}/src"
+DIST_DIR="${SCRIPT_DIR}/dist"
+HEADER_FILE="${SCRIPT_DIR}/helpers/header.html"
+FOOTER_FILE="${SCRIPT_DIR}/helpers/footer.html"
+
+# Colors for terminal output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+log_info()    { echo -e "${CYAN}ℹ${NC}  $*"; }
+log_success() { echo -e "${GREEN}✓${NC}  $*"; }
+log_warn()    { echo -e "${YELLOW}⚠${NC}  $*"; }
+log_error()   { echo -e "${RED}✗${NC}  $*" >&2; }
+log_skip()    { echo -e "${DIM}⊘  $*${NC}"; }
+
+# ── extract_meta ──────────────────────────────────────────────────────────────
+# Extracts a metadata value from an <!-- APP-META ... --> block in a file.
+# Usage: extract_meta "Title" "/path/to/file.html"
+extract_meta() {
+    local key="$1"
+    local file="$2"
+    awk -v key="$key" '
+        /<!-- APP-META/    { in_meta=1; next }
+        /-->/              { if (in_meta) exit }
+        in_meta {
+            if (match($0, "^[[:space:]]*" key "[[:space:]]*:[[:space:]]*(.*)", arr)) {
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", arr[1])
+                print arr[1]
+                exit
+            }
+        }
+    ' "$file"
+}
+
+# ── has_meta_block ────────────────────────────────────────────────────────────
+# Returns 0 (true) if the file contains an <!-- APP-META block.
+has_meta_block() {
+    grep -q '<!-- APP-META' "$1" 2>/dev/null
+}
+
+# ── escape_json ───────────────────────────────────────────────────────────────
+escape_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+# ── inject_into_file ──────────────────────────────────────────────────────────
+# Injects header content after <body> (or <html>, or top-of-file) and
+# footer content before </body> (or </html>, or bottom-of-file).
+# Operates on the DIST copy, never on source.
+#
+# Fallback chain for header: <body → <html → prepend to top
+# Fallback chain for footer: </body> → </html> → append to bottom
+inject_into_file() {
+    local target="$1"
+
+    # ── Read partial contents ─────────────────────────────────────────────
+    local header_content="" footer_content=""
+
+    if [[ -s "$HEADER_FILE" ]]; then
+        header_content="$(cat "$HEADER_FILE")"
+    fi
+    if [[ -s "$FOOTER_FILE" ]]; then
+        footer_content="$(cat "$FOOTER_FILE")"
+    fi
+
+    # Nothing to inject
+    if [[ -z "$header_content" && -z "$footer_content" ]]; then
+        return 0
+    fi
+
+    local tmpfile="${target}.tmp"
+
+    # ── Inject header ─────────────────────────────────────────────────────
+    if [[ -n "$header_content" ]]; then
+        if grep -qi '<body' "$target"; then
+            # Insert after the line containing <body
+            awk -v block="$header_content" '
+            {
+                print
+                if (!done && tolower($0) ~ /<body/) {
+                    print block
+                    done = 1
+                }
+            }' "$target" > "$tmpfile" && mv "$tmpfile" "$target"
+        elif grep -qi '<html' "$target"; then
+            # Insert after the line containing <html
+            awk -v block="$header_content" '
+            {
+                print
+                if (!done && tolower($0) ~ /<html/) {
+                    print block
+                    done = 1
+                }
+            }' "$target" > "$tmpfile" && mv "$tmpfile" "$target"
+        else
+            # No body or html tag — prepend to top of file
+            { echo "$header_content"; cat "$target"; } > "$tmpfile" && mv "$tmpfile" "$target"
+        fi
+    fi
+
+    # ── Inject footer ─────────────────────────────────────────────────────
+    if [[ -n "$footer_content" ]]; then
+        if grep -qi '</body>' "$target"; then
+            # Insert before the line containing </body>
+            awk -v block="$footer_content" '
+            {
+                if (!done && tolower($0) ~ /<\/body>/) {
+                    print block
+                    done = 1
+                }
+                print
+            }' "$target" > "$tmpfile" && mv "$tmpfile" "$target"
+        elif grep -qi '</html>' "$target"; then
+            # Insert before the line containing </html>
+            awk -v block="$footer_content" '
+            {
+                if (!done && tolower($0) ~ /<\/html>/) {
+                    print block
+                    done = 1
+                }
+                print
+            }' "$target" > "$tmpfile" && mv "$tmpfile" "$target"
+        else
+            # No closing tag — append to bottom of file
+            { cat "$target"; echo "$footer_content"; } > "$tmpfile" && mv "$tmpfile" "$target"
+        fi
+    fi
+}
+
+# ── ensure_meta_block ─────────────────────────────────────────────────────────
+# Adds a skeleton APP-META comment block to source files that lack one.
+# This is the ONLY source modification the build performs.
+ensure_meta_block() {
+    local src_file="$1"
+    local app_slug="$2"
+
+    if has_meta_block "$src_file"; then
+        return 0
+    fi
+
+    # Try to derive a title from <title> tag
+    local title
+    title="$(grep -oiP '(?<=<title>)[^<]+' "$src_file" 2>/dev/null | head -1 || true)"
+    if [[ -z "$title" ]]; then
+        # Humanize the directory name
+        title="$(echo "$app_slug" | sed 's/-/ /g; s/\b\(.\)/\u\1/g')"
+    fi
+
+    local meta_block="<!-- APP-META
+Title: ${title}
+Description:
+Category:
+Status: published
+-->"
+
+    # Prepend the meta block to the file
+    { echo "$meta_block"; cat "$src_file"; } > "${src_file}.tmp" && mv "${src_file}.tmp" "$src_file"
+    log_warn "  Added APP-META block to ${BOLD}src/${app_slug}/index.html${NC} ${DIM}(edit to fill in details)${NC}"
+}
+
+# ── ensure_status_field ───────────────────────────────────────────────────────
+# If an APP-META block exists but has no Status field, add one.
+ensure_status_field() {
+    local src_file="$1"
+
+    if ! has_meta_block "$src_file"; then
+        return 0
+    fi
+
+    # Check if Status field already exists
+    local status
+    status="$(extract_meta "Status" "$src_file")"
+    if [[ -n "$status" ]]; then
+        return 0
+    fi
+
+    # Insert "Status: published" before the closing --> of the APP-META block
+    awk '
+    /<!-- APP-META/ { in_meta=1 }
+    in_meta && /-->/ {
+        print "Status: published"
+        in_meta=0
+    }
+    { print }
+    ' "$src_file" > "${src_file}.tmp" && mv "${src_file}.tmp" "$src_file"
+    log_warn "  Added missing ${BOLD}Status: published${NC} to APP-META block"
+}
+
+# ── cmd_build ─────────────────────────────────────────────────────────────────
+cmd_build() {
+    log_info "Starting build..."
+
+    # ── Phase 0: Clean & copy src → dist ──────────────────────────────────
+    rm -rf "$DIST_DIR"
+    cp -r "$SRC_DIR" "$DIST_DIR"
+    log_success "Copied ${BOLD}src/${NC} → ${BOLD}dist/${NC}"
+
+    # Remove the old apps.csv if it got copied
+    rm -f "${DIST_DIR}/apps.csv"
+
+    # ── Phase 1: Discover apps, ensure metadata, extract ──────────────────
+    log_info "Scanning for apps..."
+
+    local app_count=0
+    local json_entries=""
+
+    while IFS= read -r -d '' src_file; do
+        local app_dir
+        app_dir="$(dirname "$src_file")"
+        local app_slug
+        app_slug="$(basename "$app_dir")"
+
+        # Skip dist directory (shouldn't exist in src, but be safe)
+        if [[ "$app_slug" == "dist" ]]; then
+            continue
+        fi
+
+        # ── Ensure APP-META block exists in SOURCE ────────────────────────
+        ensure_meta_block "$src_file" "$app_slug"
+        ensure_status_field "$src_file"
+
+        # ── Extract metadata ──────────────────────────────────────────────
+        local title description category status image
+        title="$(extract_meta "Title" "$src_file")"
+        description="$(extract_meta "Description" "$src_file")"
+        category="$(extract_meta "Category" "$src_file")"
+        status="$(extract_meta "Status" "$src_file")"
+        image="$(extract_meta "Image" "$src_file")"
+
+        # Default status to published
+        if [[ -z "$status" ]]; then
+            status="published"
+        fi
+
+        # ── Copy updated source to dist (meta block may have been added) ──
+        local dist_file="${DIST_DIR}/${app_slug}/index.html"
+        cp "$src_file" "$dist_file"
+
+        # ── Inject header/footer into the DIST copy ───────────────────────
+        inject_into_file "$dist_file"
+        log_success "  Built: ${BOLD}${app_slug}/${NC} ${DIM}(${status})${NC}"
+
+        # ── Only include published apps in apps.json ──────────────────────
+        if [[ "$status" != "published" ]]; then
+            log_skip "  Skipped from apps.json: ${app_slug} (${status})"
+            continue
+        fi
+
+        # Fallback title from directory name
+        if [[ -z "$title" ]]; then
+            title="$app_slug"
+        fi
+
+        local json_title json_desc json_cat json_img json_path
+        json_title="$(escape_json "$title")"
+        json_desc="$(escape_json "$description")"
+        json_cat="$(escape_json "$category")"
+        json_img="$(escape_json "$image")"
+        json_path="$(escape_json "${app_slug}/")"
+
+        if [[ -n "$json_entries" ]]; then
+            json_entries+=","
+        fi
+
+        json_entries+="
+    {
+      \"title\": \"${json_title}\",
+      \"description\": \"${json_desc}\",
+      \"category\": \"${json_cat}\",
+      \"image\": \"${json_img}\",
+      \"path\": \"${json_path}\"
+    }"
+
+        app_count=$((app_count + 1))
+
+    done < <(find "$SRC_DIR" -mindepth 2 -maxdepth 2 -name "index.html" -print0 | sort -z)
+
+    # ── Phase 2: Write apps.json to dist ──────────────────────────────────
+    local json_output="[${json_entries}
+]"
+    echo "$json_output" > "${DIST_DIR}/apps.json"
+    log_success "Generated ${BOLD}dist/apps.json${NC} with ${app_count} published app(s)."
+
+    echo ""
+    log_success "${BOLD}Build complete!${NC}"
+    log_info "Preview: ${BOLD}./gist preview${NC}"
+}
+
+# ── cmd_preview ───────────────────────────────────────────────────────────────
+cmd_preview() {
+    local port="${1:-8080}"
+
+    if [[ ! -d "$DIST_DIR" ]]; then
+        log_warn "dist/ does not exist. Running build first..."
+        cmd_build
+        echo ""
+    fi
+
+    log_info "Serving ${BOLD}dist/${NC} at ${BOLD}http://localhost:${port}${NC}"
+    log_info "Press Ctrl+C to stop."
+    echo ""
+
+    if command -v python3 &>/dev/null; then
+        python3 -m http.server "$port" --directory "$DIST_DIR"
+    elif command -v python &>/dev/null; then
+        (cd "$DIST_DIR" && python -m SimpleHTTPServer "$port")
+    else
+        log_error "No python found. Install python3 to use the preview server."
+        exit 1
+    fi
+}
+
+# ── cmd_clean ─────────────────────────────────────────────────────────────────
+cmd_clean() {
+    if [[ -d "$DIST_DIR" ]]; then
+        rm -rf "$DIST_DIR"
+        log_success "Removed ${BOLD}dist/${NC}"
+    else
+        log_info "Nothing to clean."
+    fi
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+usage() {
+    echo -e "${BOLD}Usage:${NC} ./gist <command>"
+    echo ""
+    echo "Commands:"
+    echo "  build      Copy src/ → dist/, inject header/footer, generate apps.json."
+    echo "  preview    Serve dist/ locally (default port: 8080)."
+    echo "  clean      Remove dist/."
+    echo ""
+    echo "Examples:"
+    echo "  ./gist build"
+    echo "  ./gist preview 3000"
+}
+
+case "${1:-}" in
+    build)   cmd_build ;;
+    preview) cmd_preview "${2:-8080}" ;;
+    clean)   cmd_clean ;;
+    -h|--help|help) usage ;;
+    *)
+        log_error "Unknown command: '${1:-}'"
+        usage
+        exit 1
+        ;;
+esac
