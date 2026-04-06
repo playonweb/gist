@@ -304,12 +304,10 @@ func cmdBuild() {
 			srcPath := filepath.Join(srcDir, name)
 			distPath := filepath.Join(distDir, name)
 			wg.Add(1)
-			go func(s, ds, n string) {
+			go func(s, ds string) {
 				defer wg.Done()
-				if err := copyFile(s, ds); err == nil && n == "index.html" {
-					_ = injectIntoFile(ds, bCtx.Header, bCtx.Footer)
-				}
-			}(srcPath, distPath, name)
+				_ = copyFile(s, ds)
+			}(srcPath, distPath)
 			continue
 		}
 
