@@ -22,8 +22,10 @@ Status: published
     }
   </script>
 </head>
-<body class="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-800">
-  <div id="app" class="w-full max-w-5xl"></div>
+<body class="min-h-screen bg-slate-50 font-sans text-slate-800">
+  <div class="flex items-center justify-center p-4 min-h-[calc(100vh-var(--gist-header-h,56px))]">
+    <div id="app" class="w-full max-w-5xl"></div>
+  </div>
 
   <script type="module">
     import { createApp, ref } from 'vue';
