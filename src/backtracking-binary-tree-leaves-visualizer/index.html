@@ -5,14 +5,6 @@ Category: Algorithms
 Status: published
 -->
 <!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Saved HTML</title>
-</head>
-<body>
-<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -21,49 +13,50 @@ Status: published
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 p-6">
-<div id="app" class="max-w-6xl mx-auto">
-  <h1 class="text-3xl font-bold mb-4 text-center">Binary Tree Paths Step Visualizer</h1>
-
-  <div class="mb-4">
-    <label class="block mb-2 font-semibold">Tree Input (level-order, comma-separated, use null for empty nodes):</label>
-    <input v-model="treeInput" @change="buildTree" class="w-full p-2 border rounded" placeholder="e.g. 1,2,3,null,5">
-  </div>
-
-  <div class="mb-4 flex gap-2 flex-wrap">
-    <button @click="restart" class="bg-blue-600 text-white px-4 py-2 rounded">Restart</button>
-    <button @click="pause" class="bg-yellow-500 text-white px-4 py-2 rounded">Pause</button>
-    <button @click="resume" class="bg-green-600 text-white px-4 py-2 rounded">Resume</button>
-    <button @click="prevStep" class="bg-gray-300 px-3 py-1 rounded">Prev Step</button>
-    <button @click="nextStep" class="bg-gray-300 px-3 py-1 rounded">Next Step</button>
-    <span class="ml-2 font-semibold">Speed:</span>
-    <button @click="setSpeed('slow')" :class="speed==='slow'?'bg-green-600 text-white':'bg-gray-300'" class="px-3 py-1 rounded">Slow</button>
-    <button @click="setSpeed('normal')" :class="speed==='normal'?'bg-green-600 text-white':'bg-gray-300'" class="px-3 py-1 rounded">Normal</button>
-    <button @click="setSpeed('fast')" :class="speed==='fast'?'bg-green-600 text-white':'bg-gray-300'" class="px-3 py-1 rounded">Fast</button>
-  </div>
-
-  <div class="flex flex-col md:flex-row gap-4">
-    <svg ref="svg" class="w-full md:w-2/3 h-[600px] border bg-white rounded shadow"></svg>
-
-    <div class="md:w-1/3 flex flex-col gap-4">
-      <div class="p-2 bg-white rounded shadow">
-        <h2 class="text-xl font-bold mb-2">Current Path (track):</h2>
-        <p class="font-mono text-blue-600">{{ currentTrack.join(' -> ') }}</p>
+<body class="bg-gray-100 font-sans text-slate-800">
+  <div class="max-w-6xl mx-auto p-6 min-h-[calc(100vh-var(--gist-header-h,56px))]">
+    <div id="app">
+      <h1 class="text-3xl font-bold mb-4 text-center">Binary Tree Paths Step Visualizer</h1>
+      
+      <div class="mb-4 text-left">
+        <label class="block mb-2 font-semibold">Tree Input (level-order, comma-separated, use null for empty nodes):</label>
+        <input v-model="treeInput" @change="buildTree" class="w-full p-2 border rounded" placeholder="e.g. 1,2,3,null,5">
       </div>
-      <div class="p-2 bg-white rounded shadow">
-        <h2 class="text-xl font-bold mb-2">Saved Paths (res):</h2>
-        <ul class="list-disc ml-6 font-mono text-green-700">
-          <li v-for="p in currentRes" :key="p.join('-')">{{ p.join(' -> ') }}</li>
-        </ul>
+
+      <div class="mb-4 flex gap-2 flex-wrap">
+        <button @click="restart" class="bg-blue-600 text-white px-4 py-2 rounded">Restart</button>
+        <button @click="pause" class="bg-yellow-500 text-white px-4 py-2 rounded">Pause</button>
+        <button @click="resume" class="bg-green-600 text-white px-4 py-2 rounded">Resume</button>
+        <button @click="prevStep" class="bg-gray-300 px-3 py-1 rounded">Prev Step</button>
+        <button @click="nextStep" class="bg-gray-300 px-3 py-1 rounded">Next Step</button>
+        <span class="ml-2 font-semibold">Speed:</span>
+        <button @click="setSpeed('slow')" :class="speed==='slow'?'bg-green-600 text-white':'bg-gray-300'" class="px-3 py-1 rounded">Slow</button>
+        <button @click="setSpeed('normal')" :class="speed==='normal'?'bg-green-600 text-white':'bg-gray-300'" class="px-3 py-1 rounded">Normal</button>
+        <button @click="setSpeed('fast')" :class="speed==='fast'?'bg-green-600 text-white':'bg-gray-300'" class="px-3 py-1 rounded">Fast</button>
       </div>
-      <div class="p-2 bg-white rounded shadow">
-        <h2 class="text-xl font-bold mb-2">Step Info:</h2>
-        <p>{{ stepInfo }}</p>
+
+      <div class="flex flex-col md:flex-row gap-4">
+        <svg ref="svg" class="w-full md:w-2/3 h-[600px] border bg-white rounded shadow"></svg>
+
+        <div class="md:w-1/3 flex flex-col gap-4 text-left">
+          <div class="p-2 bg-white rounded shadow">
+            <h2 class="text-xl font-bold mb-2">Current Path (track):</h2>
+            <p class="font-mono text-blue-600">{{ currentTrack.join(' -> ') }}</p>
+          </div>
+          <div class="p-2 bg-white rounded shadow">
+            <h2 class="text-xl font-bold mb-2">Saved Paths (res):</h2>
+            <ul class="list-disc ml-6 font-mono text-green-700">
+              <li v-for="p in currentRes" :key="p.join('-')">{{ p.join(' -> ') }}</li>
+            </ul>
+          </div>
+          <div class="p-2 bg-white rounded shadow">
+            <h2 class="text-xl font-bold mb-2">Step Info:</h2>
+            <p>{{ stepInfo }}</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-</div>
-
 <script>
 const { createApp, ref, reactive, onMounted } = Vue;
 
@@ -198,8 +191,5 @@ createApp({
   }
 }).mount("#app");
 </script>
-</body>
-</html>
-
 </body>
 </html>
