@@ -57,9 +57,12 @@ extract_meta() {
         /<!-- APP-META/    { in_meta=1; next }
         /-->/              { if (in_meta) exit }
         in_meta {
-            if (match($0, "^[[:space:]]*" key "[[:space:]]*:[[:space:]]*(.*)", arr)) {
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", arr[1])
-                print arr[1]
+            # Standard AWK does not support the 3-argument match(s, r, a).
+            # We check for the key, strip it, and print the rest.
+            if ($0 ~ "^[[:space:]]*" key "[[:space:]]*:") {
+                sub("^[[:space:]]*" key "[[:space:]]*:[[:space:]]*", "")
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+                print $0
                 exit
             }
         }

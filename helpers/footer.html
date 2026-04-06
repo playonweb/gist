@@ -1,23 +1,87 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     GIST PLAY — Shared Site Footer
-     Injected automatically by ./app build before </body> in every app.
-     Edit this file to add analytics scripts, cookie banners, or shared UI.
+     GIST PLAY — Premium Shared Footer
+     Minimalist, neutral, and blends into any design.
      ═══════════════════════════════════════════════════════════════════════════ -->
-<div id="gist-footer" style="
-    background: #0f172a;
-    border-top: 1px solid rgba(99, 102, 241, 0.15);
-    padding: 12px 16px;
-    font-family: system-ui, -apple-system, sans-serif;
-    text-align: center;
-    color: #475569;
-    font-size: 11px;
-">
-    <a href="../" style="color: #818cf8; text-decoration: none; font-weight: 500;">
-        ← Back to App Directory
-    </a>
-    <span style="margin: 0 8px;">·</span>
-    <span>Gist Play © 2025</span>
-</div>
+<div id="gist-footer-root">
+    <style>
+        #gist-footer {
+            margin-top: 100px;
+            padding: 64px 24px;
+            border-top: 1px solid rgba(128, 128, 128, 0.08);
+            background: linear-gradient(to bottom, transparent, rgba(128, 128, 128, 0.02));
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            text-align: center;
+            color: #64748b;
+            clear: both;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            #gist-footer {
+                color: #94a3b8;
+                border-top: 1px solid rgba(255, 255, 255, 0.05);
+            }
+        }
 
-<!-- Analytics placeholder: paste your tracking script below -->
-<!-- <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script> -->
+        .gist-footer-content {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .gist-footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 24px;
+        }
+
+        .gist-footer-link {
+            color: inherit;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .gist-footer-link:hover {
+            color: #6366f1;
+            transform: translateY(-1px);
+        }
+
+        .gist-footer-copy {
+            font-size: 12px;
+            opacity: 0.5;
+            font-weight: 400;
+            letter-spacing: -0.01em;
+        }
+
+        .gist-footer-divider {
+            width: 40px;
+            height: 2px;
+            background: rgba(99, 102, 241, 0.2);
+            margin: 0 auto 24px;
+            border-radius: 2px;
+        }
+    </style>
+    
+    <footer id="gist-footer">
+        <div class="gist-footer-content">
+            <div class="gist-footer-divider"></div>
+            <nav class="gist-footer-links">
+                <a href="../" class="gist-footer-link">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m15 18-6-6 6-6"/></svg>
+                    Back to Apps
+                </a>
+                <a href="https://github.com/rahuldhole/gist" target="_blank" class="gist-footer-link">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/></svg>
+                    GitHub
+                </a>
+            </nav>
+            <p class="gist-footer-copy">
+                &copy; 2025 Gist Play &bull; Crafted with precision for the web.
+            </p>
+        </div>
+    </footer>
+</div>

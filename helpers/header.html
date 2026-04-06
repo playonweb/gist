@@ -1,31 +1,156 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     GIST PLAY — Shared Site Header
-     Injected automatically by ./app build into every app's <body>.
-     Edit this file to add analytics, navigation banners, or ad scripts.
+     GIST PLAY — Premium Shared Header
+     Adapts to any design via glassmorphism and neutral colors.
      ═══════════════════════════════════════════════════════════════════════════ -->
-<div id="gist-header" style="
-    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-    border-bottom: 1px solid rgba(99, 102, 241, 0.2);
-    padding: 8px 16px;
-    font-family: system-ui, -apple-system, sans-serif;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 9999;
-">
-    <a href="../" style="
-        color: #a5b4fc;
-        text-decoration: none;
-        font-size: 13px;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    ">
-        <span style="font-size: 16px;">←</span>
-        <span>Gist <span style="color: #818cf8;">Play</span></span>
-    </a>
-    <span style="color: #475569; font-size: 11px;">playonweb.org</span>
+<div id="gist-header-root">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+
+        :root {
+            --gist-header-h: 56px;
+            --gist-accent: #6366f1;
+            --gist-accent-glow: rgba(99, 102, 241, 0.15);
+        }
+
+        #gist-header {
+            position: sticky;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 2147483647; /* Maximum possible z-index */
+            height: var(--gist-header-h);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+            
+            /* Glassmorphic Foundation */
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            background: rgba(255, 255, 255, 0.7);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            color: #1e293b;
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            box-sizing: border-box;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            #gist-header {
+                background: rgba(15, 23, 42, 0.75);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                color: #f1f5f9;
+            }
+        }
+
+        .gist-logo-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: inherit;
+            transition: opacity 0.2s ease;
+        }
+
+        .gist-logo-wrap:hover {
+            opacity: 0.8;
+        }
+
+        .gist-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px var(--gist-accent-glow);
+            color: white;
+            font-weight: 800;
+            font-size: 16px;
+            transform: rotate(-3deg);
+            transition: transform 0.3s ease;
+        }
+
+        .gist-logo-wrap:hover .gist-icon {
+            transform: rotate(0deg) scale(1.05);
+        }
+
+        .gist-brand {
+            font-weight: 700;
+            font-size: 15px;
+            letter-spacing: -0.03em;
+        }
+
+        .gist-brand span {
+            color: var(--gist-accent);
+        }
+
+        .gist-nav {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .gist-home-btn {
+            background: rgba(128, 128, 128, 0.08);
+            border: 1px solid rgba(128, 128, 128, 0.05);
+            padding: 8px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .gist-home-btn:hover {
+            background: rgba(128, 128, 128, 0.15);
+            transform: translateY(-1px);
+        }
+
+        .gist-home-btn svg {
+            width: 14px;
+            height: 14px;
+            transition: transform 0.2s ease;
+        }
+
+        .gist-home-btn:hover svg {
+            transform: translateX(-3px);
+        }
+
+        .gist-badge {
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 3px 6px;
+            background: var(--gist-accent-glow);
+            color: var(--gist-accent);
+            border-radius: 4px;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        /* Ensure body doesn't have overlap issues */
+        body { margin-top: 0 !important; }
+    </style>
+    
+    <header id="gist-header">
+        <a href="../" class="gist-logo-wrap">
+            <div class="gist-icon">G</div>
+            <div class="gist-brand">Gist <span>Play</span></div>
+        </a>
+        
+        <div class="gist-nav">
+            <div class="gist-badge">Experimental</div>
+            <a href="../" class="gist-home-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                Directory
+            </a>
+        </div>
+    </header>
 </div>
