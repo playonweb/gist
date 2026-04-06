@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 // ── Configuration ─────────────────────────────────────────────────────────────
@@ -47,9 +48,10 @@ type AppMeta struct {
 	Description string `json:"description"`
 	Category    string `json:"category"`
 	Status      string `json:"status"`
-	Image       string `json:"image"`
-	Icon        string `json:"icon"`
-	Path        string `json:"path"`
+	Image       string    `json:"image"`
+	Icon        string    `json:"icon"`
+	Path        string    `json:"path"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // ── Metadata Extraction ──────────────────────────────────────────────────────
@@ -232,6 +234,10 @@ func cmdBuild() {
 			title = d.Name()
 		}
 
+		// Get modification time
+		info, _ := os.Stat(srcIdx)
+		modTime := info.ModTime()
+
 		apps = append(apps, AppMeta{
 			Title:       title,
 			Description: extractMeta("Description", cStr),
@@ -240,12 +246,13 @@ func cmdBuild() {
 			Icon:        extractMeta("Icon", cStr),
 			Status:      status,
 			Path:        d.Name() + "/",
+			UpdatedAt:   modTime,
 		})
 	}
 
-	// Sort apps
+	// Sort apps by UpdatedAt DESC (latest first)
 	sort.Slice(apps, func(i, j int) bool {
-		return apps[i].Title < apps[j].Title
+		return apps[i].UpdatedAt.After(apps[j].UpdatedAt)
 	})
 
 	// Phase 2: JSON
