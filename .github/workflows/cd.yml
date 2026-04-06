@@ -40,6 +40,8 @@ jobs:
           go-version: '1.21'
           
       - name: Run build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: go run gist.go build
 
       # ── Deploy ──────────────────────────────────────────────────────────

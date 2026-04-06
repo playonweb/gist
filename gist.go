@@ -157,19 +157,44 @@ func injectIntoFile(target string) error {
 }
 
 func getGitUpdateTime(path string) time.Time {
-	cmd := exec.Command("git", "log", "-1", "--format=%ct", "--", path)
+	// 1. Try local Git history first
+	dir := filepath.Dir(path)
+	cmd := exec.Command("git", "log", "-1", "--format=%ct", "--", dir)
 	out, err := cmd.Output()
-	if err != nil || len(out) == 0 {
-		info, _ := os.Stat(path)
-		return info.ModTime()
+	if err == nil && len(out) > 0 {
+		tsStr := strings.TrimSpace(string(out))
+		ts, err := strconv.ParseInt(tsStr, 10, 64)
+		if err == nil && ts > 0 {
+			return time.Unix(ts, 0)
+		}
 	}
-	tsStr := strings.TrimSpace(string(out))
-	ts, err := strconv.ParseInt(tsStr, 10, 64)
-	if err != nil {
-		info, _ := os.Stat(path)
-		return info.ModTime()
+
+	// 2. Fallback to GitHub API only in CI (to avoid rate limits and slow clones)
+	repo := os.Getenv("GITHUB_REPOSITORY") // owner/repo
+	token := os.Getenv("GITHUB_TOKEN")
+	if repo != "" && token != "" {
+		url := fmt.Sprintf("https://api.github.com/repos/%s/commits?path=%s&per_page=1", repo, dir)
+		req, _ := http.NewRequest("GET", url, nil)
+		req.Header.Set("Authorization", "token "+token)
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err == nil && resp.StatusCode == 200 {
+			var result []struct {
+				Commit struct {
+					Committer struct {
+						Date time.Time `json:"date"`
+					} `json:"committer"`
+				} `json:"commit"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&result); err == nil && len(result) > 0 {
+				return result[0].Commit.Committer.Date
+			}
+		}
 	}
-	return time.Unix(ts, 0)
+
+	// 3. Last resort: local file time
+	info, _ := os.Stat(path)
+	return info.ModTime()
 }
 
 // ── Metadata Management ──────────────────────────────────────────────────────
