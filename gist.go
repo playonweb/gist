@@ -1,10 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -24,6 +25,15 @@ const (
 	distDir    = "dist"
 	headerFile = "helpers/header.html"
 	footerFile = "helpers/footer.html"
+	maxWorkers = 10 // Concurrent worker limit for processing apps
+)
+
+// Pre-compiled regexes for performance
+var (
+	reMetaBlock = regexp.MustCompile(`(?s)<!-- APP-META(.*?)-->`)
+	reTitleTag  = regexp.MustCompile(`(?i)<title>([^<]+)</title>`)
+	reBodyTag   = regexp.MustCompile(`(?i)(<body[^>]*>)`)
+	reHtmlTag   = regexp.MustCompile(`(?i)(<html[^>]*>)`)
 )
 
 // Colors for terminal output
@@ -46,27 +56,34 @@ func logSkip(msg string, args ...interface{})    { fmt.Printf(dim+"⊘  "+msg+nc
 // ── App Metadata Model ───────────────────────────────────────────────────────
 
 type AppMeta struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	Status      string `json:"status"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Category    string    `json:"category"`
+	Status      string    `json:"status"`
 	Image       string    `json:"image"`
 	Icon        string    `json:"icon"`
 	Path        string    `json:"path"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// ── Build Context ─────────────────────────────────────────────────────────────
+
+type BuildCtx struct {
+	Header []byte
+	Footer []byte
+	Repo   string
+	Token  string
+}
+
 // ── Metadata Extraction ──────────────────────────────────────────────────────
 
-func extractMeta(key string, content string) string {
-	re := regexp.MustCompile(`(?s)<!-- APP-META(.*?)-->`)
-	match := re.FindStringSubmatch(content)
+func extractMeta(key, content string) string {
+	match := reMetaBlock.FindStringSubmatch(content)
 	if len(match) < 2 {
 		return ""
 	}
-	metaBlock := match[1]
-	
-	lines := strings.Split(metaBlock, "\n")
+
+	lines := strings.Split(match[1], "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(strings.ToLower(line), strings.ToLower(key)+":") {
@@ -79,28 +96,64 @@ func extractMeta(key string, content string) string {
 	return ""
 }
 
-func hasMetaBlock(content string) bool {
-	return strings.Contains(content, "<!-- APP-META")
+// ── Concurrency Safe App Processor ───────────────────────────────────────────
+
+func processApp(ctx context.Context, bCtx *BuildCtx, appDir os.DirEntry) (*AppMeta, error) {
+	name := appDir.Name()
+	srcIdx := filepath.Join(srcDir, name, "index.html")
+	distIdx := filepath.Join(distDir, name, "index.html")
+
+	// Ensure source meta (Synchronous at source level, but fine for local)
+	ensureMetaBlock(srcIdx, name)
+
+	content, err := os.ReadFile(srcIdx)
+	if err != nil {
+		return nil, err
+	}
+	cStr := string(content)
+
+	status := extractMeta("Status", cStr)
+	if status == "" {
+		status = "published"
+	}
+
+	// Copy & Inject
+	if err := os.MkdirAll(filepath.Dir(distIdx), 0755); err != nil {
+		return nil, err
+	}
+	if err := copyFile(srcIdx, distIdx); err != nil {
+		return nil, err
+	}
+	if err := injectIntoFile(distIdx, bCtx.Header, bCtx.Footer); err != nil {
+		return nil, err
+	}
+
+	if status != "published" {
+		logSkip("  Skipped: %s (%s)", name, status)
+		return nil, nil
+	}
+
+	title := extractMeta("Title", cStr)
+	if title == "" {
+		title = name
+	}
+
+	// Sort Metadata
+	modTime := getGitUpdateTime(srcIdx, bCtx)
+
+	return &AppMeta{
+		Title:       title,
+		Description: extractMeta("Description", cStr),
+		Category:    extractMeta("Category", cStr),
+		Image:       extractMeta("Image", cStr),
+		Icon:        extractMeta("Icon", cStr),
+		Status:      status,
+		Path:        name + "/",
+		UpdatedAt:   modTime,
+	}, nil
 }
 
-// ── File Operations ──────────────────────────────────────────────────────────
-
-func copyDir(src string, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dst, rel)
-		if info.IsDir() {
-			return os.MkdirAll(target, info.Mode())
-		}
-		return copyFile(path, target)
-	})
-}
+// ── Optimized File Operations ───────────────────────────────────────────────
 
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
@@ -117,26 +170,19 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-// ── Injection Logic ──────────────────────────────────────────────────────────
-
-func injectIntoFile(target string) error {
-	content, err := ioutil.ReadFile(target)
+func injectIntoFile(target string, header, footer []byte) error {
+	content, err := os.ReadFile(target)
 	if err != nil {
 		return err
 	}
 	html := string(content)
 
-	header, _ := ioutil.ReadFile(headerFile)
-	footer, _ := ioutil.ReadFile(footerFile)
-
 	if len(header) > 0 {
 		hStr := string(header)
-		if strings.Contains(strings.ToLower(html), "<body") {
-			re := regexp.MustCompile(`(?i)(<body[^>]*>)`)
-			html = re.ReplaceAllString(html, "$1\n"+hStr)
-		} else if strings.Contains(strings.ToLower(html), "<html") {
-			re := regexp.MustCompile(`(?i)(<html[^>]*>)`)
-			html = re.ReplaceAllString(html, "$1\n"+hStr)
+		if reBodyTag.MatchString(html) {
+			html = reBodyTag.ReplaceAllString(html, "$1\n"+hStr)
+		} else if reHtmlTag.MatchString(html) {
+			html = reHtmlTag.ReplaceAllString(html, "$1\n"+hStr)
 		} else {
 			html = hStr + "\n" + html
 		}
@@ -153,184 +199,139 @@ func injectIntoFile(target string) error {
 		}
 	}
 
-	return ioutil.WriteFile(target, []byte(html), 0644)
+	return os.WriteFile(target, []byte(html), 0644)
 }
 
-func getGitUpdateTime(path string) time.Time {
-	// 1. Try local Git history first
+func getGitUpdateTime(path string, bCtx *BuildCtx) time.Time {
 	dir := filepath.Dir(path)
+
+	// 1. Local Git Check
 	cmd := exec.Command("git", "log", "-1", "--format=%ct", "--", dir)
-	out, err := cmd.Output()
-	if err == nil && len(out) > 0 {
-		tsStr := strings.TrimSpace(string(out))
-		ts, err := strconv.ParseInt(tsStr, 10, 64)
-		if err == nil && ts > 0 {
+	if out, err := cmd.Output(); err == nil && len(out) > 0 {
+		if ts, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64); err == nil && ts > 0 {
 			return time.Unix(ts, 0)
 		}
 	}
 
-	// 2. Fallback to GitHub API only in CI (to avoid rate limits and slow clones)
-	repo := os.Getenv("GITHUB_REPOSITORY") // owner/repo
-	token := os.Getenv("GITHUB_TOKEN")
-	if repo != "" && token != "" {
-		url := fmt.Sprintf("https://api.github.com/repos/%s/commits?path=%s&per_page=1", repo, dir)
+	// 2. GitHub API Fallback (CI Optimization)
+	if bCtx.Repo != "" && bCtx.Token != "" {
+		url := fmt.Sprintf("https://api.github.com/repos/%s/commits?path=%s&per_page=1", bCtx.Repo, dir)
 		req, _ := http.NewRequest("GET", url, nil)
-		req.Header.Set("Authorization", "token "+token)
-		client := &http.Client{Timeout: 5 * time.Second}
-		resp, err := client.Do(req)
-		if err == nil && resp.StatusCode == 200 {
-			var result []struct {
-				Commit struct {
-					Committer struct {
-						Date time.Time `json:"date"`
-					} `json:"committer"`
-				} `json:"commit"`
-			}
-			if err := json.NewDecoder(resp.Body).Decode(&result); err == nil && len(result) > 0 {
-				return result[0].Commit.Committer.Date
+		req.Header.Set("Authorization", "token "+bCtx.Token)
+		client := &http.Client{Timeout: 3 * time.Second}
+		if resp, err := client.Do(req); err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == 200 {
+				var res []struct {
+					Commit struct {
+						Committer struct {
+							Date time.Time `json:"date"`
+						} `json:"committer"`
+					} `json:"commit"`
+				}
+				if err := json.NewDecoder(resp.Body).Decode(&res); err == nil && len(res) > 0 {
+					return res[0].Commit.Committer.Date
+				}
 			}
 		}
 	}
 
-	// 3. Last resort: local file time
-	info, _ := os.Stat(path)
-	return info.ModTime()
+	// 3. Fallback
+	if info, err := os.Stat(path); err == nil {
+		return info.ModTime()
+	}
+	return time.Now()
 }
 
-// ── Metadata Management ──────────────────────────────────────────────────────
-
-func ensureMetaBlock(path string, slug string) {
-	content, _ := ioutil.ReadFile(path)
-	if hasMetaBlock(string(content)) {
+func ensureMetaBlock(path, slug string) {
+	bytes, _ := os.ReadFile(path)
+	if strings.Contains(string(bytes), "<!-- APP-META") {
 		return
 	}
 
-	title := ""
-	re := regexp.MustCompile(`(?i)<title>([^<]+)</title>`)
-	match := re.FindStringSubmatch(string(content))
-	if len(match) > 1 {
+	title := slug
+	if match := reTitleTag.FindStringSubmatch(string(bytes)); len(match) > 1 {
 		title = strings.TrimSpace(match[1])
-	} else {
-		title = strings.Title(strings.ReplaceAll(slug, "-", " "))
 	}
 
-	metaBlock := fmt.Sprintf("<!-- APP-META\nTitle: %s\nDescription:\nCategory:\nStatus: published\n-->\n", title)
-	ioutil.WriteFile(path, []byte(metaBlock+string(content)), 0644)
-	logInfo("Added APP-META block to src/%s/index.html", slug)
+	meta := fmt.Sprintf("<!-- APP-META\nTitle: %s\nDescription:\nCategory:\nStatus: published\n-->\n", title)
+	_ = os.WriteFile(path, append([]byte(meta), bytes...), 0644)
 }
 
-// ── Commands ─────────────────────────────────────────────────────────────────
+// ── Command Implementation ───────────────────────────────────────────────────
 
 func cmdBuild() {
-	logInfo("Starting build...")
+	start := time.Now()
+	logInfo("🚀 Initializing high-performance build...")
 
-	// Phase 0: Clean
+	// Pre-load assets into memory
+	header, _ := os.ReadFile(headerFile)
+	footer, _ := os.ReadFile(footerFile)
+	bCtx := &BuildCtx{
+		Header: header,
+		Footer: footer,
+		Repo:   os.Getenv("GITHUB_REPOSITORY"),
+		Token:  os.Getenv("GITHUB_TOKEN"),
+	}
+
+	// Workspace preparation
 	os.RemoveAll(distDir)
-	err := copyDir(srcDir, distDir)
+	_ = os.MkdirAll(distDir, 0755)
+
+	dirs, err := os.ReadDir(srcDir)
 	if err != nil {
-		logError("Failed to copy src to dist: %v", err)
+		logError("Source directory missing: %v", err)
 		os.Exit(1)
 	}
-	logSuccess("Copied %ssrc/%s → %sdist/%s", bold, nc, bold, nc)
 
-	// Phase 1: Scan
-	logInfo("Scanning for apps...")
-	var apps []AppMeta
+	// Concurrent Processing
+	var (
+		wg      sync.WaitGroup
+		mu      sync.Mutex
+		apps    []AppMeta
+		tokens  = make(chan struct{}, maxWorkers)
+		results = make(chan *AppMeta, len(dirs))
+	)
 
-	dirs, _ := ioutil.ReadDir(srcDir)
 	for _, d := range dirs {
-		if !d.IsDir() || d.Name() == "dist" {
-			continue
-		}
-		
-		srcIdx := filepath.Join(srcDir, d.Name(), "index.html")
-		if _, err := os.Stat(srcIdx); os.IsNotExist(err) {
+		if !d.IsDir() || d.Name() == distDir {
 			continue
 		}
 
-		// Ensure meta in SOURCE
-		ensureMetaBlock(srcIdx, d.Name())
-		
-		content, _ := ioutil.ReadFile(srcIdx)
-		cStr := string(content)
+		wg.Add(1)
+		go func(entry os.DirEntry) {
+			defer wg.Done()
+			tokens <- struct{}{} // Acquire worker
+			defer func() { <-tokens }() // Release worker
 
-		status := extractMeta("Status", cStr)
-		if status == "" {
-			status = "published"
-		}
-
-		// Copy potentially updated source to dist
-		distIdx := filepath.Join(distDir, d.Name(), "index.html")
-		copyFile(srcIdx, distIdx)
-
-		// Inject
-		injectIntoFile(distIdx)
-		logSuccess("  Built: %s%s/%s %s(%s)%s", bold, d.Name(), nc, dim, status, nc)
-
-		if status != "published" {
-			logSkip("  Skipped from apps.json: %s (%s)", d.Name(), status)
-			continue
-		}
-
-		title := extractMeta("Title", cStr)
-		if title == "" {
-			title = d.Name()
-		}
-
-		// Get modification time via Git
-		modTime := getGitUpdateTime(srcIdx)
-
-		apps = append(apps, AppMeta{
-			Title:       title,
-			Description: extractMeta("Description", cStr),
-			Category:    extractMeta("Category", cStr),
-			Image:       extractMeta("Image", cStr),
-			Icon:        extractMeta("Icon", cStr),
-			Status:      status,
-			Path:        d.Name() + "/",
-			UpdatedAt:   modTime,
-		})
+			app, err := processApp(context.Background(), bCtx, entry)
+			if err != nil {
+				logError("  Failed %s: %v", entry.Name(), err)
+				return
+			}
+			if app != nil {
+				mu.Lock()
+				apps = append(apps, *app)
+				mu.Unlock()
+				logSuccess("  Synthesized: %s", entry.Name())
+			}
+		}(d)
 	}
 
-	// Sort apps by UpdatedAt DESC (latest first)
+	wg.Wait()
+	close(results)
+
+	// Finalize Collection
 	sort.Slice(apps, func(i, j int) bool {
 		return apps[i].UpdatedAt.After(apps[j].UpdatedAt)
 	})
 
-	// Phase 2: JSON
 	jsonData, _ := json.MarshalIndent(apps, "", "  ")
-	ioutil.WriteFile(filepath.Join(distDir, "apps.json"), jsonData, 0644)
-	logSuccess("Generated %sdist/apps.json%s with %d published app(s).", bold, nc, len(apps))
+	_ = os.WriteFile(filepath.Join(distDir, "apps.json"), jsonData, 0644)
 
-	fmt.Println()
-	logSuccess("%sBuild complete!%s", bold, nc)
-	logInfo("Preview: %sgo run gist.go preview%s", bold, nc)
+	logSuccess("\n✨ Build complete in %v", time.Since(start))
+	logInfo("Registry: dist/apps.json (%d apps)", len(apps))
 }
-
-func cmdPreview(port string) {
-	if _, err := os.Stat(distDir); os.IsNotExist(err) {
-		logWarn("dist/ does not exist. Building first...")
-		cmdBuild()
-	}
-
-	logInfo("Serving %sdist/%s at %shttp://localhost:%s%s", bold, nc, bold, port, nc)
-	logInfo("Press Ctrl+C to stop.")
-	
-	fs := http.FileServer(http.Dir(distDir))
-	http.Handle("/", fs)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
-}
-
-func cmdClean() {
-	if _, err := os.Stat(distDir); err == nil {
-		os.RemoveAll(distDir)
-		logSuccess("Removed %sdist/%s", bold, nc)
-	} else {
-		logInfo("Nothing to clean.")
-	}
-}
-
-// ── Main ──────────────────────────────────────────────────────────────────────
 
 func main() {
 	if len(os.Args) < 2 {
@@ -338,8 +339,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cmd := os.Args[1]
-	switch cmd {
+	switch os.Args[1] {
 	case "build":
 		cmdBuild()
 	case "preview":
@@ -347,23 +347,16 @@ func main() {
 		if len(os.Args) > 2 {
 			port = os.Args[2]
 		}
-		cmdPreview(port)
+		logInfo("📡 Serving dist/ on http://localhost:%s", port)
+		log.Fatal(http.ListenAndServe(":"+port, http.FileServer(http.Dir(distDir))))
 	case "clean":
-		cmdClean()
+		os.RemoveAll(distDir)
+		logSuccess("Cleaned workspace.")
 	default:
-		logError("Unknown command: %s", cmd)
 		usage()
-		os.Exit(1)
 	}
 }
 
 func usage() {
-	fmt.Printf("%sUsage:%s go run gist.go <command>\n\n", bold, nc)
-	fmt.Println("Commands:")
-	fmt.Println("  build      Copy src/ → dist/, inject header/footer, generate apps.json.")
-	fmt.Println("  preview    Serve dist/ locally (default port: 8080).")
-	fmt.Println("  clean      Remove dist/.")
-	fmt.Println("\nExamples:")
-	fmt.Println("  go run gist.go build")
-	fmt.Println("  go run gist.go preview 3000")
+	fmt.Printf("%sUsage:%s go run gist.go [build|preview|clean]\n", bold, nc)
 }
