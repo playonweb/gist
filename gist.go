@@ -8,9 +8,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -154,6 +156,22 @@ func injectIntoFile(target string) error {
 	return ioutil.WriteFile(target, []byte(html), 0644)
 }
 
+func getGitUpdateTime(path string) time.Time {
+	cmd := exec.Command("git", "log", "-1", "--format=%ct", "--", path)
+	out, err := cmd.Output()
+	if err != nil || len(out) == 0 {
+		info, _ := os.Stat(path)
+		return info.ModTime()
+	}
+	tsStr := strings.TrimSpace(string(out))
+	ts, err := strconv.ParseInt(tsStr, 10, 64)
+	if err != nil {
+		info, _ := os.Stat(path)
+		return info.ModTime()
+	}
+	return time.Unix(ts, 0)
+}
+
 // ── Metadata Management ──────────────────────────────────────────────────────
 
 func ensureMetaBlock(path string, slug string) {
@@ -234,9 +252,8 @@ func cmdBuild() {
 			title = d.Name()
 		}
 
-		// Get modification time
-		info, _ := os.Stat(srcIdx)
-		modTime := info.ModTime()
+		// Get modification time via Git
+		modTime := getGitUpdateTime(srcIdx)
 
 		apps = append(apps, AppMeta{
 			Title:       title,
