@@ -38,12 +38,17 @@ To create a new app, simply create a new folder in `src/` with an `index.html`.
 
 At the top of your `index.html`, include an `APP-META` comment block:
 
+Copy latest template [src/example/index.html](src/example/index.html) to a new folder in `src/new-app/index.html`.
+
+**Sample:**
 ```html
 <!-- APP-META
 Title: My Cool App
 Description: A short description of what it does.
 Category: Tools
 Status: published
+Image: 
+Icon: 
 -->
 <!DOCTYPE html>
 <html lang="en">
