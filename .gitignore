@@ -1,17 +1,22 @@
-# === Generated ===
+# Build
 dist/
+gist-tool
+gist
+out/
+bin/
 
-# === OS Files ===
+# Dependencies
+vendor/
+
+# OS / Editor
 .DS_Store
 Thumbs.db
 Desktop.ini
-
-# === Editor ===
-*.swp
-*.swo
-*~
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# === Misc ===
+# Misc
 *.log
+*.test

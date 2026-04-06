@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -25,7 +25,7 @@ const (
 	distDir    = "dist"
 	headerFile = "helpers/header.html"
 	footerFile = "helpers/footer.html"
-	maxWorkers = 10 // Concurrent worker limit for processing apps
+	maxWorkers = 10
 )
 
 // Pre-compiled regexes for performance
@@ -34,6 +34,7 @@ var (
 	reTitleTag  = regexp.MustCompile(`(?i)<title>([^<]+)</title>`)
 	reBodyTag   = regexp.MustCompile(`(?i)(<body[^>]*>)`)
 	reHtmlTag   = regexp.MustCompile(`(?i)(<html[^>]*>)`)
+	reUpdated   = regexp.MustCompile(`(?i)Updated:\s*[^\n]+`)
 )
 
 // Colors for terminal output
@@ -75,13 +76,13 @@ type BuildCtx struct {
 
 // ── Metadata Extraction ──────────────────────────────────────────────────────
 
-func extractMeta(key, content string) string {
-	match := reMetaBlock.FindStringSubmatch(content)
+func extractMeta(key string, content []byte) string {
+	match := reMetaBlock.FindSubmatch(content)
 	if len(match) < 2 {
 		return ""
 	}
 
-	lines := strings.Split(match[1], "\n")
+	lines := strings.Split(string(match[1]), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(strings.ToLower(line), strings.ToLower(key)+":") {
@@ -108,21 +109,20 @@ func processApp(ctx context.Context, bCtx *BuildCtx, appDir os.DirEntry) (*AppMe
 	if err != nil {
 		return nil, err
 	}
-	cStr := string(content)
 
-	status := extractMeta("Status", cStr)
+	status := extractMeta("Status", content)
 	if status == "" {
 		status = "published"
 	}
 
-	// Copy & Inject
+	// Prepare directory
 	if err := os.MkdirAll(filepath.Dir(distIdx), 0755); err != nil {
 		return nil, err
 	}
-	if err := copyFile(srcIdx, distIdx); err != nil {
-		return nil, err
-	}
-	if err := injectIntoFile(distIdx, bCtx.Header, bCtx.Footer); err != nil {
+
+	// Process and Write in one pass
+	processedContent := injectBytePartials(content, bCtx.Header, bCtx.Footer)
+	if err := os.WriteFile(distIdx, processedContent, 0644); err != nil {
 		return nil, err
 	}
 
@@ -131,24 +131,22 @@ func processApp(ctx context.Context, bCtx *BuildCtx, appDir os.DirEntry) (*AppMe
 		return nil, nil
 	}
 
-	title := extractMeta("Title", cStr)
+	title := extractMeta("Title", content)
 	if title == "" {
 		title = name
 	}
 
 	// Parse custom "Updated" field from meta block
-	updatedStr := extractMeta("Updated", cStr)
+	updatedStr := extractMeta("Updated", content)
 	var updatedAt time.Time
-	// Try parsing as Unix timestamp first
 	if ts, err := strconv.ParseInt(updatedStr, 10, 64); err == nil && ts > 0 {
 		updatedAt = time.Unix(ts, 0)
 	} else {
-		// Fallback to RFC3339 or ISO date
-		var err error
-		updatedAt, err = time.Parse(time.RFC3339, updatedStr)
-		if err != nil {
-			updatedAt, err = time.Parse("2006-01-02", updatedStr)
-			if err == nil {
+		var parseErr error
+		updatedAt, parseErr = time.Parse(time.RFC3339, updatedStr)
+		if parseErr != nil {
+			updatedAt, parseErr = time.Parse("2006-01-02", updatedStr)
+			if parseErr == nil {
 				updatedAt = time.Date(updatedAt.Year(), updatedAt.Month(), updatedAt.Day(), 23, 59, 59, 0, time.UTC)
 			}
 		}
@@ -164,86 +162,65 @@ func processApp(ctx context.Context, bCtx *BuildCtx, appDir os.DirEntry) (*AppMe
 
 	return &AppMeta{
 		Title:       title,
-		Description: extractMeta("Description", cStr),
-		Category:    extractMeta("Category", cStr),
-		Image:       extractMeta("Image", cStr),
-		Icon:        extractMeta("Icon", cStr),
+		Description: extractMeta("Description", content),
+		Category:    extractMeta("Category", content),
+		Image:       extractMeta("Image", content),
+		Icon:        extractMeta("Icon", content),
 		Status:      status,
 		Path:        name + "/",
 		UpdatedAt:   updatedAt,
 	}, nil
 }
 
-// ── Optimized File Operations ───────────────────────────────────────────────
+// ── Optimized Bytes Operations ──────────────────────────────────────────────
 
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
-}
-
-func injectIntoFile(target string, header, footer []byte) error {
-	content, err := os.ReadFile(target)
-	if err != nil {
-		return err
-	}
-	html := string(content)
-
+func injectBytePartials(content []byte, header, footer []byte) []byte {
+	out := content
 	if len(header) > 0 {
-		hStr := string(header)
-		if reBodyTag.MatchString(html) {
-			html = reBodyTag.ReplaceAllString(html, "$1\n"+hStr)
-		} else if reHtmlTag.MatchString(html) {
-			html = reHtmlTag.ReplaceAllString(html, "$1\n"+hStr)
+		if reBodyTag.Match(out) {
+			out = reBodyTag.ReplaceAll(out, append(reBodyTag.Find(out), append([]byte("\n"), header...)...))
+		} else if reHtmlTag.Match(out) {
+			out = reHtmlTag.ReplaceAll(out, append(reHtmlTag.Find(out), append([]byte("\n"), header...)...))
 		} else {
-			html = hStr + "\n" + html
+			out = append(header, append([]byte("\n"), out...)...)
 		}
 	}
 
 	if len(footer) > 0 {
-		fStr := string(footer)
-		if strings.Contains(strings.ToLower(html), "</body>") {
-			html = strings.Replace(html, "</body>", fStr+"\n</body>", 1)
-		} else if strings.Contains(strings.ToLower(html), "</html>") {
-			html = strings.Replace(html, "</html>", fStr+"\n</html>", 1)
+		fStr := []byte("</body>")
+		if bytes.Contains(out, fStr) {
+			out = bytes.Replace(out, fStr, append(footer, append([]byte("\n"), fStr...)...), 1)
 		} else {
-			html = html + "\n" + fStr
+			fStr = []byte("</html>")
+			if bytes.Contains(out, fStr) {
+				out = bytes.Replace(out, fStr, append(footer, append([]byte("\n"), fStr...)...), 1)
+			} else {
+				out = append(out, append([]byte("\n"), footer...)...)
+			}
 		}
 	}
-
-	return os.WriteFile(target, []byte(html), 0644)
+	return out
 }
 
 func ensureMetaBlock(path, slug string) {
-	bytes, _ := os.ReadFile(path)
-	if strings.Contains(string(bytes), "<!-- APP-META") {
+	bytesContent, _ := os.ReadFile(path)
+	if bytes.Contains(bytesContent, []byte("<!-- APP-META")) {
 		return
 	}
 
 	title := slug
-	if match := reTitleTag.FindStringSubmatch(string(bytes)); len(match) > 1 {
-		title = strings.TrimSpace(match[1])
+	if match := reTitleTag.FindSubmatch(bytesContent); len(match) > 1 {
+		title = strings.TrimSpace(string(match[1]))
 	}
 
-	meta := fmt.Sprintf("<!-- APP-META\nTitle: %s\nDescription:\nCategory:\nStatus: published\nUpdated: %s\n-->\n", 
-		title, time.Now().Format("2006-01-02"))
-	_ = os.WriteFile(path, append([]byte(meta), bytes...), 0644)
+	meta := fmt.Sprintf("<!-- APP-META\nTitle: %s\nDescription:\nCategory:\nStatus: published\nUpdated: %d\n-->\n", 
+		title, time.Now().Unix())
+	_ = os.WriteFile(path, append([]byte(meta), bytesContent...), 0644)
 }
 
 func cmdUpdateMetadata() {
 	logInfo("Scanning for changes to update metadata...")
 	
-	// Get changed folders in src/ relative to previous commit
-	// In GitHub Actions, we can check files in the current commit
 	cmd := exec.Command("git", "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")
 	out, err := cmd.Output()
 	if err != nil {
@@ -251,7 +228,6 @@ func cmdUpdateMetadata() {
 		return
 	}
 
-	// Use Unix Timestamp for better machine precision and easy parsing
 	today := fmt.Sprintf("%d", time.Now().Unix())
 	changedApps := make(map[string]bool)
 	lines := strings.Split(string(out), "\n")
@@ -280,29 +256,22 @@ func cmdUpdateMetadata() {
 		}
 
 		content, _ := os.ReadFile(path)
-		cStr := string(content)
-		
-		if !strings.Contains(cStr, "<!-- APP-META") {
+		if !bytes.Contains(content, []byte("<!-- APP-META")) {
 			ensureMetaBlock(path, appName)
 			continue
 		}
 
-		// Update or Add "Updated: YYYY-MM-DD"
-		re := regexp.MustCompile(`(?s)(<!-- APP-META.*?-->)`)
-		match := re.FindStringSubmatch(cStr)
+		match := reMetaBlock.FindSubmatch(content)
 		if len(match) > 0 {
 			block := match[1]
-			var newBlock string
-			if strings.Contains(strings.ToLower(block), "updated:") {
-				// Replace existing
-				reUp := regexp.MustCompile(`(?i)Updated:\s*[^\n]+`)
-				newBlock = reUp.ReplaceAllString(block, "Updated: "+today)
+			var newBlock []byte
+			if reUpdated.Match(block) {
+				newBlock = reUpdated.ReplaceAll(block, []byte("Updated: "+today))
 			} else {
-				// Add new before the end
-				newBlock = strings.Replace(block, "-->", "Updated: "+today+"\n-->", 1)
+				newBlock = bytes.Replace(block, []byte("-->"), []byte("Updated: "+today+"\n-->"), 1)
 			}
-			newContent := strings.Replace(cStr, block, newBlock, 1)
-			os.WriteFile(path, []byte(newContent), 0644)
+			newContent := bytes.Replace(content, block, newBlock, 1)
+			os.WriteFile(path, newContent, 0644)
 			logSuccess("  Updated timestamp for %s", appName)
 		}
 	}
@@ -312,7 +281,7 @@ func cmdUpdateMetadata() {
 
 func cmdBuild() {
 	start := time.Now()
-	logInfo("🚀 Initializing metadata-driven build...")
+	logInfo("🚀 Initializing high-performance build...")
 
 	header, _ := os.ReadFile(headerFile)
 	footer, _ := os.ReadFile(footerFile)
@@ -321,12 +290,7 @@ func cmdBuild() {
 	os.RemoveAll(distDir)
 	_ = os.MkdirAll(distDir, 0755)
 
-	dirs, err := os.ReadDir(srcDir)
-	if err != nil {
-		logError("Source directory missing: %v", err)
-		os.Exit(1)
-	}
-
+	dirs, _ := os.ReadDir(srcDir)
 	var (
 		wg      sync.WaitGroup
 		mu      sync.Mutex
@@ -346,7 +310,13 @@ func cmdBuild() {
 			wg.Add(1)
 			go func(s, ds string) {
 				defer wg.Done()
-				_ = copyFile(s, ds)
+				data, err := os.ReadFile(s)
+				if err == nil {
+					if name == "index.html" {
+						data = injectBytePartials(data, bCtx.Header, bCtx.Footer)
+					}
+					_ = os.WriteFile(ds, data, 0644)
+				}
 			}(srcPath, distPath)
 			continue
 		}
@@ -358,11 +328,7 @@ func cmdBuild() {
 			defer func() { <-tokens }()
 
 			app, err := processApp(context.Background(), bCtx, entry)
-			if err != nil {
-				logError("  Failed %s: %v", entry.Name(), err)
-				return
-			}
-			if app != nil {
+			if err == nil && app != nil {
 				mu.Lock()
 				apps = append(apps, *app)
 				mu.Unlock()
@@ -381,13 +347,12 @@ func cmdBuild() {
 	_ = os.WriteFile(filepath.Join(distDir, "apps.json"), jsonData, 0644)
 
 	logSuccess("\n✨ Build complete in %v", time.Since(start))
-	logInfo("Registry: dist/apps.json (%d apps)", len(apps))
 }
 
 func main() {
 	if len(os.Args) < 2 {
-		usage()
-		os.Exit(1)
+		fmt.Println("Usage: go run gist.go [build|update-metadata|preview|clean]")
+		return
 	}
 
 	switch os.Args[1] {
@@ -400,16 +365,8 @@ func main() {
 		if len(os.Args) > 2 {
 			port = os.Args[2]
 		}
-		logInfo("📡 Serving dist/ on http://localhost:%s", port)
 		log.Fatal(http.ListenAndServe(":"+port, http.FileServer(http.Dir(distDir))))
 	case "clean":
 		os.RemoveAll(distDir)
-		logSuccess("Cleaned workspace.")
-	default:
-		usage()
 	}
-}
-
-func usage() {
-	fmt.Printf("%sUsage:%s go run gist.go [build|preview|clean]\n", bold, nc)
 }

@@ -33,15 +33,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── Build ───────────────────────────────────────────────────────────
+      # ── Build Tool ──────────────────────────────────────────────────────
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-          
+
+      - name: Compile Tool
+        run: go build -o gist-tool gist.go && chmod +x gist-tool
+
       # ── Update Metadata ──────────────────────────────────────────────────
       - name: Update Metadata
-        run: go run gist.go update-metadata
+        run: ./gist-tool update-metadata
 
       - name: Commit metadata
         uses: stefanzweifel/git-auto-commit-action@v5
@@ -50,7 +53,7 @@ jobs:
           file_pattern: 'src/**/index.html'
 
       - name: Run build
-        run: go run gist.go build
+        run: ./gist-tool build
 
       # ── Deploy ──────────────────────────────────────────────────────────
       - name: Setup Pages
