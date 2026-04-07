@@ -290,9 +290,11 @@ func cmdBuild() {
 	os.RemoveAll(distDir)
 	_ = os.MkdirAll(distDir, 0755)
 
-	// Phase 1: Global Assets (Root index.html)
-	if data, err := os.ReadFile("index.html"); err == nil {
-		_ = os.WriteFile(filepath.Join(distDir, "index.html"), data, 0644)
+	// Phase 1: Global Assets
+	for _, asset := range []string{"index.html", "favicon.svg"} {
+		if data, err := os.ReadFile(asset); err == nil {
+			_ = os.WriteFile(filepath.Join(distDir, asset), data, 0644)
+		}
 	}
 	
 	// Phase 2: App Scanning

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gist Apps | App Directory</title>
 
-    <link rel="icon" href="data:image/svg+xml,<svg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'><circle cx='50' cy='50' r='45' fill='none' stroke='%236366f1' stroke-width='5'/><path d='M50 15L85 50L50 85L15 50Z' fill='%236366f1' fill-opacity='0.2'/><text x='50' y='65' font-family='Arial' font-size='40' font-weight='bold' text-anchor='middle' fill='%236366f1'>G</text></svg>">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
 
     <!-- Application Logic -->
     <script>
@@ -203,13 +203,7 @@
 
                 <!-- Logo/Title -->
                 <div class="flex items-center gap-3 group cursor-pointer" @click="window.location.reload()">
-                    <div
-                        class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform">
-                        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                        </svg>
-                    </div>
+                    <img src="favicon.svg" alt="Gist Play" class="w-10 h-10 rounded-xl shadow-lg group-hover:rotate-6 transition-transform">
                     <h1 class="text-2xl font-black tracking-tight">
                         <span class="text-primary">Gist</span>
                         <span class="logo-play opacity-80">Play</span>
