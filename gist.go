@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -34,7 +33,6 @@ var (
 	reTitleTag  = regexp.MustCompile(`(?i)<title>([^<]+)</title>`)
 	reBodyTag   = regexp.MustCompile(`(?i)(<body[^>]*>)`)
 	reHtmlTag   = regexp.MustCompile(`(?i)(<html[^>]*>)`)
-	reUpdated   = regexp.MustCompile(`(?i)Updated:\s*[^\n]+`)
 )
 
 // Colors for terminal output
@@ -101,9 +99,6 @@ func processApp(ctx context.Context, bCtx *BuildCtx, appDir os.DirEntry) (*AppMe
 	name := appDir.Name()
 	srcIdx := filepath.Join(srcDir, name, "index.html")
 	distIdx := filepath.Join(distDir, name, "index.html")
-
-	// Ensure source meta shell is present
-	ensureMetaBlock(srcIdx, name)
 
 	content, err := os.ReadFile(srcIdx)
 	if err != nil {
@@ -195,86 +190,10 @@ func injectBytePartials(content []byte, header, footer []byte) []byte {
 			if bytes.Contains(out, fStr) {
 				out = bytes.Replace(out, fStr, append(footer, append([]byte("\n"), fStr...)...), 1)
 			} else {
-				out = append(out, append([]byte("\n"), footer...)...)
 			}
 		}
 	}
 	return out
-}
-
-func ensureMetaBlock(path, slug string) {
-	bytesContent, _ := os.ReadFile(path)
-	if bytes.Contains(bytesContent, []byte("<!-- APP-META")) {
-		return
-	}
-
-	title := slug
-	if match := reTitleTag.FindSubmatch(bytesContent); len(match) > 1 {
-		title = strings.TrimSpace(string(match[1]))
-	}
-
-	meta := fmt.Sprintf("<!-- APP-META\nTitle: %s\nDescription:\nCategory:\nStatus: published\nUpdated: %d\n-->\n", 
-		title, time.Now().Unix())
-	_ = os.WriteFile(path, append([]byte(meta), bytesContent...), 0644)
-}
-
-func cmdUpdateMetadata() {
-	logInfo("Scanning for changes to update metadata...")
-	
-	cmd := exec.Command("git", "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")
-	out, err := cmd.Output()
-	if err != nil {
-		logError("Failed to get git diff: %v", err)
-		return
-	}
-
-	today := fmt.Sprintf("%d", time.Now().Unix())
-	changedApps := make(map[string]bool)
-	lines := strings.Split(string(out), "\n")
-	
-	for _, line := range lines {
-		if strings.HasPrefix(line, "src/") {
-			parts := strings.Split(line, "/")
-			if len(parts) >= 2 {
-				appName := parts[1]
-				if appName != "index.html" {
-					changedApps[appName] = true
-				}
-			}
-		}
-	}
-
-	if len(changedApps) == 0 {
-		logInfo("No app changes detected in src/.")
-		return
-	}
-
-	for appName := range changedApps {
-		path := filepath.Join(srcDir, appName, "index.html")
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			continue
-		}
-
-		content, _ := os.ReadFile(path)
-		if !bytes.Contains(content, []byte("<!-- APP-META")) {
-			ensureMetaBlock(path, appName)
-			continue
-		}
-
-		match := reMetaBlock.FindSubmatch(content)
-		if len(match) > 0 {
-			block := match[1]
-			var newBlock []byte
-			if reUpdated.Match(block) {
-				newBlock = reUpdated.ReplaceAll(block, []byte("Updated: "+today))
-			} else {
-				newBlock = bytes.Replace(block, []byte("-->"), []byte("Updated: "+today+"\n-->"), 1)
-			}
-			newContent := bytes.Replace(content, block, newBlock, 1)
-			os.WriteFile(path, newContent, 0644)
-			logSuccess("  Updated timestamp for %s", appName)
-		}
-	}
 }
 
 // ── Command Implementation ───────────────────────────────────────────────────
@@ -341,15 +260,13 @@ func cmdBuild() {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run gist.go [build|update-metadata|preview|clean]")
+		fmt.Println("Usage: go run gist.go [build|preview|clean]")
 		return
 	}
 
 	switch os.Args[1] {
 	case "build":
 		cmdBuild()
-	case "update-metadata":
-		cmdUpdateMetadata()
 	case "preview":
 		port := "8080"
 		if len(os.Args) > 2 {

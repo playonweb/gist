@@ -42,16 +42,6 @@ jobs:
       - name: Compile Tool
         run: go build -o gist-tool gist.go && chmod +x gist-tool
 
-      # ── Update Metadata ──────────────────────────────────────────────────
-      - name: Update Metadata
-        run: ./gist-tool update-metadata
-
-      - name: Commit metadata
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: update app metadata [skip ci]"
-          file_pattern: 'src/**/index.html'
-
       - name: Run build
         run: ./gist-tool build
 
