@@ -25,6 +25,7 @@ const (
 	distDir    = "dist"
 	headerFile = "helpers/header.html"
 	footerFile = "helpers/footer.html"
+	pwaFile    = "helpers/pwa.html"
 	maxWorkers = 10
 	baseURL    = "https://gist.rahuldhole.com/"
 )
@@ -33,6 +34,7 @@ const (
 var (
 	reMetaBlock = regexp.MustCompile(`(?s)<!-- APP-META(.*?)-->`)
 	reTitleTag  = regexp.MustCompile(`(?i)<title>([^<]+)</title>`)
+	reHeadTag   = regexp.MustCompile(`(?i)(<head[^>]*>)`)
 	reBodyTag   = regexp.MustCompile(`(?i)(<body[^>]*>)`)
 	reHtmlTag   = regexp.MustCompile(`(?i)(<html[^>]*>)`)
 )
@@ -72,6 +74,7 @@ type AppMeta struct {
 type BuildCtx struct {
 	Header []byte
 	Footer []byte
+	PWA    []byte
 }
 
 // ── Metadata Extraction ──────────────────────────────────────────────────────
@@ -117,7 +120,7 @@ func processApp(ctx context.Context, bCtx *BuildCtx, appDir os.DirEntry) (*AppMe
 		return nil, err
 	}
 
-	// Extract metadata for OG tags (before status check so tags are injected into all pages)
+	// Extract metadata for OG & PWA tags
 	title := extractMeta("Title", content)
 	if title == "" {
 		title = name
@@ -127,14 +130,15 @@ func processApp(ctx context.Context, bCtx *BuildCtx, appDir os.DirEntry) (*AppMe
 	category := extractMeta("Category", content)
 	icon := extractMeta("Icon", content)
 
-	// Process content: inject header/footer, then OG meta tags
+	// Process content: inject header/footer, OG meta tags, and PWA suite
 	footerToInject := bCtx.Footer
 	if strings.ToLower(extractMeta("Disable-Footer", content)) == "true" {
 		footerToInject = nil
 	}
 	
 	processedContent := injectBytePartials(content, bCtx.Header, footerToInject)
-	processedContent = injectOGTags(processedContent, title, description, category, icon, name+"/")
+	processedContent = injectOGTags(processedContent, title, description, category, icon, image, name+"/")
+	processedContent, _ = processAppPWA(processedContent, name, title, description, category, image, distIdx, bCtx.PWA)
 	if err := os.WriteFile(distIdx, processedContent, 0644); err != nil {
 		return nil, err
 	}
@@ -185,7 +189,9 @@ func processApp(ctx context.Context, bCtx *BuildCtx, appDir os.DirEntry) (*AppMe
 func injectBytePartials(content []byte, header, footer []byte) []byte {
 	out := content
 	if len(header) > 0 {
-		if reBodyTag.Match(out) {
+		if reHeadTag.Match(out) {
+			out = reHeadTag.ReplaceAll(out, append(reHeadTag.Find(out), append([]byte("\n"), header...)...))
+		} else if reBodyTag.Match(out) {
 			out = reBodyTag.ReplaceAll(out, append(reBodyTag.Find(out), append([]byte("\n"), header...)...))
 		} else if reHtmlTag.Match(out) {
 			out = reHtmlTag.ReplaceAll(out, append(reHtmlTag.Find(out), append([]byte("\n"), header...)...))
@@ -202,7 +208,6 @@ func injectBytePartials(content []byte, header, footer []byte) []byte {
 			fStr = []byte("</html>")
 			if bytes.Contains(out, fStr) {
 				out = bytes.Replace(out, fStr, append(footer, append([]byte("\n"), fStr...)...), 1)
-			} else {
 			}
 		}
 	}
@@ -254,7 +259,7 @@ func truncate(s string, max int) string {
 	return string(runes[:max])
 }
 
-func generateOGTags(title, description, category, icon, path string) []byte {
+func generateOGTags(title, description, category, icon, customImage, path string) []byte {
 	var b bytes.Buffer
 	pageURL := baseURL + path
 
@@ -265,7 +270,10 @@ func generateOGTags(title, description, category, icon, path string) []byte {
 	if description != "" {
 		fmt.Fprintf(&b, "    <meta property=\"og:description\" content=\"%s\" />\n", description)
 	}
-	ogImg := ogImageURL(title, description, category, icon)
+	ogImg := customImage
+	if ogImg == "" {
+		ogImg = ogImageURL(title, description, category, icon)
+	}
 	fmt.Fprintf(&b, "    <meta property=\"og:image\" content=\"%s\" />\n", ogImg)
 	fmt.Fprintf(&b, "    <meta property=\"og:image:width\" content=\"1200\" />\n")
 	fmt.Fprintf(&b, "    <meta property=\"og:image:height\" content=\"630\" />\n")
@@ -280,8 +288,8 @@ func generateOGTags(title, description, category, icon, path string) []byte {
 	return b.Bytes()
 }
 
-func injectOGTags(content []byte, title, description, category, icon, path string) []byte {
-	ogTags := generateOGTags(title, description, category, icon, path)
+func injectOGTags(content []byte, title, description, category, icon, customImage, path string) []byte {
+	ogTags := generateOGTags(title, description, category, icon, customImage, path)
 	if len(ogTags) == 0 {
 		return content
 	}
@@ -328,17 +336,18 @@ func cmdBuild() {
 
 	header, _ := os.ReadFile(headerFile)
 	footer, _ := os.ReadFile(footerFile)
-	bCtx := &BuildCtx{Header: header, Footer: footer}
+	pwa, _ := os.ReadFile(pwaFile)
+	bCtx := &BuildCtx{Header: header, Footer: footer, PWA: pwa}
 
 	os.RemoveAll(distDir)
 	_ = os.MkdirAll(distDir, 0755)
 
 	// Phase 1: Global Assets
-	for _, asset := range []string{"favicon.svg"} {
-		if data, err := os.ReadFile(asset); err == nil {
-			_ = os.WriteFile(filepath.Join(distDir, asset), data, 0644)
-		}
+	if data, err := os.ReadFile("favicon.svg"); err == nil {
+		_ = os.WriteFile(filepath.Join(distDir, "favicon.svg"), data, 0644)
+		_ = os.WriteFile(filepath.Join(distDir, "favicon.ico"), data, 0644)
 	}
+	setupPWAGlobalAssets()
 	
 	// Phase 2: App Scanning
 	dirs, _ := os.ReadDir(srcDir)
@@ -402,7 +411,7 @@ func cmdBuild() {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run gist.go [build|preview|clean]")
+		fmt.Println("Usage: go run . [build|preview|clean]")
 		return
 	}
 

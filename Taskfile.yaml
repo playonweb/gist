@@ -4,24 +4,24 @@ tasks:
   build:
     desc: Build the app directory (Copy src to dist, inject header/footer)
     cmds:
-      - go run gist.go build
+      - go run . build
 
   update-metadata:
     desc: Automatically update 'Updated:' dates in src/ based on Git changes
     cmds:
-      - go run gist.go update-metadata
+      - go run . update-metadata
 
   preview:
     desc: Start a local preview server on port 8080
     cmds:
       - task: clean
       - task: build
-      - go run gist.go preview {{.CLI_ARGS}}
+      - go run . preview {{.CLI_ARGS}}
 
   clean:
     desc: Remove the generated dist/ directory
     cmds:
-      - go run gist.go clean
+      - go run . clean
 
   setup:
     desc: Initial setup (ensure dependencies)

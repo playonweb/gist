@@ -1,3 +1,44 @@
 <!-- GIST PLAY — Premium Injection Header
-     This file is reserved for future global imports and setup logic.
-     Currently empty to ensure standard apps have maximum creative freedom. -->
+     Global environment safeguards & polyfills (e.g. crypto.randomUUID in non-secure local origins, favicon fallbacks) -->
+<script>
+  (function() {
+    var globalObj = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof self !== 'undefined' ? self : this;
+    if (!globalObj) return;
+
+    var genUUID = function() {
+      if (globalObj.crypto && typeof globalObj.crypto.getRandomValues === 'function') {
+        var buf = new Uint8Array(16);
+        globalObj.crypto.getRandomValues(buf);
+        buf[6] = (buf[6] & 0x0f) | 0x40; // Version 4
+        buf[8] = (buf[8] & 0x3f) | 0x80; // Variant 10
+        var hex = Array.from(buf, function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+        return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+      }
+      return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, function(c) {
+        return (c ^ Math.floor(Math.random() * 16) >> c / 4).toString(16);
+      });
+    };
+
+    try {
+      if (!globalObj.crypto) {
+        Object.defineProperty(globalObj, 'crypto', {
+          value: { randomUUID: genUUID },
+          writable: true,
+          configurable: true
+        });
+      } else if (!globalObj.crypto.randomUUID) {
+        try {
+          globalObj.crypto.randomUUID = genUUID;
+        } catch (e) {
+          try {
+            Object.defineProperty(globalObj.crypto, 'randomUUID', {
+              value: genUUID,
+              writable: true,
+              configurable: true
+            });
+          } catch (e2) {}
+        }
+      }
+    } catch (err) {}
+  })();
+</script>
