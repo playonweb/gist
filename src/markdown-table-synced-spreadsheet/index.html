@@ -33,6 +33,9 @@ Disable-Footer: true
   <script src="https://unpkg.com/@univerjs/preset-sheets-core/lib/umd/locales/en-US.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/@univerjs/preset-sheets-core/lib/index.css" />
 
+  <!-- SheetJS for Excel/CSV Import/Export -->
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+
   <style>
     html, body {
       padding: 0;
@@ -122,6 +125,21 @@ Disable-Footer: true
           <button id="btn-clear" class="px-3 py-1.5 bg-rose-950 hover:bg-rose-900 text-rose-200 rounded text-xs transition flex items-center gap-1.5 border border-rose-800">
             <i class="fa-solid fa-trash-can"></i> Clear
           </button>
+          <div class="h-4 w-px bg-slate-700 mx-1"></div>
+          <button id="btn-import" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition flex items-center gap-1.5 border border-slate-700">
+            <i class="fa-solid fa-file-import text-blue-400"></i> Import
+          </button>
+          <div class="relative group">
+            <button id="btn-export-dropdown" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition flex items-center gap-1.5 border border-slate-700">
+              <i class="fa-solid fa-file-export text-emerald-400"></i> Export <i class="fa-solid fa-chevron-down text-[10px]"></i>
+            </button>
+            <div class="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+              <button id="btn-export-md" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 text-slate-700 transition"><i class="fa-brands fa-markdown w-4 text-center mr-1"></i> Markdown</button>
+              <button id="btn-export-csv" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 text-slate-700 transition"><i class="fa-solid fa-file-csv w-4 text-center mr-1"></i> CSV</button>
+              <button id="btn-export-xlsx" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 text-slate-700 transition"><i class="fa-solid fa-file-excel w-4 text-center mr-1 text-emerald-600"></i> Excel (.xlsx)</button>
+            </div>
+          </div>
+          <input type="file" id="file-upload" class="hidden" accept=".md,.csv,.xlsx,.xls" />
         </div>
       </div>
     </header>
@@ -598,6 +616,89 @@ Disable-Footer: true
       btn.innerHTML = '<i class="fa-solid fa-check text-emerald-600"></i> Copied!';
       setTimeout(() => btn.innerHTML = originalHTML, 1500);
     });
+
+    // --- Import & Export Logic ---
+    const fileUpload = document.getElementById('file-upload');
+    
+    document.getElementById('btn-import').addEventListener('click', () => {
+      fileUpload.click();
+    });
+
+    fileUpload.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      reader.onload = (event) => {
+        const data = event.target.result;
+        
+        if (ext === 'md') {
+          mdInput.value = data;
+          updateSpreadsheet(parseMarkdownTable(data));
+        } else if (ext === 'csv' || ext === 'xlsx' || ext === 'xls') {
+          try {
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            // Format matrix
+            updateSpreadsheet(json);
+            mdInput.value = matrixToMarkdown(json);
+          } catch (err) {
+            console.error('Error parsing spreadsheet file:', err);
+            alert('Failed to parse file. Ensure it is a valid CSV/Excel file.');
+          }
+        }
+      };
+
+      if (ext === 'md') {
+        reader.readAsText(file);
+      } else {
+        reader.readAsArrayBuffer(file);
+      }
+      
+      // Reset input so the same file can be selected again
+      fileUpload.value = '';
+    });
+
+    function downloadFile(content, filename, type) {
+      const blob = new Blob([content], { type: type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('btn-export-md').addEventListener('click', () => {
+      const matrix = getSheetMatrix();
+      const mdContent = matrixToMarkdown(matrix);
+      if (!mdContent) return alert('Table is empty!');
+      downloadFile(mdContent, 'export.md', 'text/markdown');
+    });
+
+    function exportSpreadsheet(format) {
+      const matrix = getSheetMatrix();
+      if (!matrix || matrix.length === 0) return alert('Table is empty!');
+      try {
+        const ws = XLSX.utils.aoa_to_sheet(matrix);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+        XLSX.writeFile(wb, 'export.' + format);
+      } catch (err) {
+        console.error('Error exporting spreadsheet:', err);
+        alert('Failed to export file.');
+      }
+    }
+
+    document.getElementById('btn-export-csv').addEventListener('click', () => exportSpreadsheet('csv'));
+    document.getElementById('btn-export-xlsx').addEventListener('click', () => exportSpreadsheet('xlsx'));
 
     // Start application on window load
     window.onload = function() {
