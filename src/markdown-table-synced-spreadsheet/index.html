@@ -1,6 +1,6 @@
 <!-- APP-META
-Title: Markdown Spreadsheet Live Sync
-Description: A real-time, bi-directional Markdown table editor and Univer spreadsheet interface with a draggable side-by-side split view.
+Title: AI Tables
+Description: AI Tables - Real-time bi-directional Markdown table editor and Excel spreadsheet sync interface. Format, import, export, and edit tables seamlessly.
 Category: Utility
 Icon: fa-solid fa-table-columns
 Image: https://images.unsplash.com/photo-1783113938335-ba83ccde7f5f?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D
@@ -12,10 +12,17 @@ Disable-Footer: true
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Markdown Table & Univer Spreadsheet Two-Way Sync</title>
+  <title>AI Tables - Markdown & Spreadsheet Live Sync</title>
+  <meta name="description" content="AI Tables: Real-time, bi-directional Markdown table and spreadsheet editor. Edit, sync, format, and import/export CSV, Excel, and Markdown tables effortlessly.">
+  <meta name="keywords" content="AI Tables, Markdown Table, Spreadsheet Sync, Excel to Markdown, CSV to Markdown, Table Formatter, Markdown Editor">
   
   <!-- Tailwind CSS for UI styling -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    }
+  </script>
   
   <!-- FontAwesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
@@ -53,16 +60,30 @@ Disable-Footer: true
       overflow: hidden;
     }
 
-    /* Resizer bar styling */
+    /* Resizer bar styling with extended touch hit area */
     .resizer {
-      background-color: #e2e8f0;
+      background-color: #f1f5f9;
       z-index: 30;
-      transition: background-color 0.15s ease;
+      transition: background-color 0.2s ease;
       user-select: none;
       touch-action: none;
+      position: relative;
+    }
+    .dark .resizer {
+      background-color: #1e293b;
+    }
+    .dark .resizer:hover, .dark .resizer.is-dragging {
+      background-color: #334155 !important;
     }
     .resizer:hover, .resizer.is-dragging {
-      background-color: #3b82f6 !important;
+      background-color: #cbd5e1 !important;
+    }
+    /* Invisible pseudo-element expander to make touch grab target at least 24px */
+    .resizer::after {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      z-index: 1;
     }
 
     /* Temporary full-screen drag overlay to prevent canvas event hijacking */
@@ -73,6 +94,15 @@ Disable-Footer: true
       user-select: none;
     }
 
+    /* Hide scrollbar for mobile header row */
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
     /* Custom scrollbar for markdown editor */
     textarea::-webkit-scrollbar {
       width: 8px;
@@ -81,134 +111,219 @@ Disable-Footer: true
     textarea::-webkit-scrollbar-track {
       background: #f1f5f9;
     }
+    .dark textarea::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
     textarea::-webkit-scrollbar-thumb {
       background: #cbd5e1;
       border-radius: 4px;
     }
+    .dark textarea::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
     textarea::-webkit-scrollbar-thumb:hover {
       background: #94a3b8;
     }
+    .dark textarea::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    /* File drag-and-drop dropzone indicator */
+    #dropzone-overlay {
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
   </style>
 </head>
-<body class="bg-slate-100 flex flex-col h-screen overflow-hidden">
+<body class="bg-slate-100 dark:bg-slate-950 flex flex-col h-screen overflow-hidden relative transition-colors duration-200">
+
+  <!-- Full-Screen Drag & Drop Overlay Indicator -->
+  <div id="dropzone-overlay" class="fixed inset-0 z-[9999] bg-blue-600/10 dark:bg-blue-900/20 backdrop-blur-md border-4 border-dashed border-blue-500 rounded-2xl m-3 flex flex-col items-center justify-center gap-3 pointer-events-none opacity-0 invisible transition-all shadow-2xl">
+    <div class="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 shadow-xl flex items-center justify-center text-blue-600 dark:text-blue-400 text-3xl animate-bounce">
+      <i class="fa-solid fa-file-arrow-up"></i>
+    </div>
+    <div class="text-center bg-white/90 dark:bg-slate-800/90 px-6 py-2.5 rounded-xl shadow-md border border-slate-200/80 dark:border-slate-700">
+      <p class="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight">Drop file to import</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Supports Markdown (.md), CSV (.csv), and Excel (.xlsx, .xls)</p>
+    </div>
+  </div>
 
   <div id="app-wrapper" class="flex-1 flex flex-col min-h-0 w-full relative">
-    <!-- Top Navigation Header -->
-    <header class="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between border-b border-slate-800 shadow-sm shrink-0">
-      <div class="flex items-center gap-3">
-        <div class="bg-blue-600 p-2 rounded-lg text-white font-bold flex items-center justify-center shadow">
-          <i class="fa-solid fa-arrows-rotate text-lg"></i>
-        </div>
-        <div>
-          <h1 class="font-semibold text-base tracking-wide flex items-center gap-2">
-            Markdown Table <i class="fa-solid fa-arrows-left-right text-xs text-blue-400"></i> Spreadsheet Sync
-          </h1>
-          <p class="text-xs text-slate-400">Two-way live editing between Markdown & Univer Sheets</p>
-        </div>
-      </div>
-      <div class="flex items-center gap-4">
-        <div class="flex items-center gap-3 text-xs text-slate-400 border-r border-slate-700 pr-4">
-          <a href="../" class="hover:text-slate-200 transition flex items-center gap-1.5">
-            <i class="fa-solid fa-arrow-left"></i> Apps
-          </a>
-          <a href="https://github.com/rahuldhole/gist" target="_blank" class="hover:text-slate-200 transition flex items-center gap-1.5">
-            <i class="fa-brands fa-github"></i> GitHub
-          </a>
-        </div>
-        <div class="flex items-center gap-2">
-          <button id="btn-sample-sales" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition flex items-center gap-1.5 border border-slate-700">
-            <i class="fa-solid fa-chart-line text-emerald-400"></i> Sales Sample
-          </button>
-          <button id="btn-sample-project" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition flex items-center gap-1.5 border border-slate-700">
-            <i class="fa-solid fa-list-check text-indigo-400"></i> Tasks Sample
-          </button>
-          <button id="btn-clear" class="px-3 py-1.5 bg-rose-950 hover:bg-rose-900 text-rose-200 rounded text-xs transition flex items-center gap-1.5 border border-rose-800">
-            <i class="fa-solid fa-trash-can"></i> Clear
-          </button>
-          <div class="h-4 w-px bg-slate-700 mx-1"></div>
-          <button id="btn-import" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition flex items-center gap-1.5 border border-slate-700">
-            <i class="fa-solid fa-file-import text-blue-400"></i> Import
-          </button>
-          <div class="relative group">
-            <button id="btn-export-dropdown" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition flex items-center gap-1.5 border border-slate-700">
-              <i class="fa-solid fa-file-export text-emerald-400"></i> Export <i class="fa-solid fa-chevron-down text-[10px]"></i>
-            </button>
-            <div class="absolute right-0 mt-1 w-36 bg-white border border-slate-200 rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-              <button id="btn-export-md" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 text-slate-700 transition"><i class="fa-brands fa-markdown w-4 text-center mr-1"></i> Markdown</button>
-              <button id="btn-export-csv" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 text-slate-700 transition"><i class="fa-solid fa-file-csv w-4 text-center mr-1"></i> CSV</button>
-              <button id="btn-export-xlsx" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 text-slate-700 transition"><i class="fa-solid fa-file-excel w-4 text-center mr-1 text-emerald-600"></i> Excel (.xlsx)</button>
-            </div>
-          </div>
-          <input type="file" id="file-upload" class="hidden" accept=".md,.csv,.xlsx,.xls" />
-        </div>
-      </div>
-    </header>
+
 
     <!-- Main Split-Screen Resizable Layout -->
     <main id="split-container" class="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden relative">
       
       <!-- Left Side: Markdown Input Panel -->
-      <section id="left-panel" class="w-full md:w-1/2 flex flex-col bg-white shadow-inner h-1/2 md:h-full min-w-[150px] min-h-[100px]">
+      <section id="left-panel" class="w-full md:w-1/2 flex flex-col bg-slate-50 dark:bg-slate-900 h-1/2 md:h-full min-w-[150px] min-h-[100px] transition-colors">
         <!-- Panel Bar -->
-        <div class="bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center justify-between shrink-0">
-          <div class="flex items-center gap-2">
-            <i class="fa-brands fa-markdown text-slate-700 text-lg"></i>
-            <span class="text-xs font-bold text-slate-700 tracking-wider uppercase">Markdown Input</span>
-            <span id="sync-status" class="px-2.5 py-0.5 text-[10px] bg-emerald-100 text-emerald-800 rounded-full font-medium flex items-center gap-1.5 transition-all">
-              <span id="sync-dot" class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-              <span id="sync-text">2-Way Sync Active</span>
+        <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border-b border-slate-200/60 dark:border-slate-800 px-3 py-1.5 md:px-4 md:py-2 flex items-center justify-between shrink-0 z-40 shadow-sm relative transition-colors">
+          <div class="flex items-center gap-2 shrink-0">
+            <i class="fa-brands fa-markdown text-slate-400 text-base md:text-lg"></i>
+            <span class="text-[13px] font-semibold text-slate-700 dark:text-slate-200 tracking-tight">AI Tables</span>
+            <span id="sync-status" class="ml-1 md:ml-2 px-2 py-0.5 text-[10px] bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full font-medium flex items-center gap-1.5 transition-all border border-emerald-100/50 dark:border-emerald-800/40">
+              <span id="sync-dot" class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
+              <span id="sync-text">Live</span>
             </span>
           </div>
-          <div class="flex items-center gap-2">
-            <button id="btn-format" title="Format Markdown Table" class="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded text-xs transition flex items-center gap-1">
-              <i class="fa-solid fa-wand-magic-sparkles"></i> Clean Format
+
+          <!-- Zoom Controls (Desktop & Mobile accessible) -->
+          <div class="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-0.5 rounded-lg border border-slate-200/60 dark:border-slate-700/60 ml-2">
+            <button id="btn-zoom-out" title="Zoom Out (Ctrl -)" class="w-6 h-6 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-white dark:hover:bg-slate-700 rounded text-xs font-semibold transition shadow-none hover:shadow-xs">
+              <i class="fa-solid fa-minus text-[10px]"></i>
             </button>
-            <button id="btn-copy" title="Copy Raw Markdown" class="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded text-xs transition flex items-center gap-1">
-              <i class="fa-regular fa-copy"></i> Copy
+            <button id="btn-zoom-reset" title="Reset Zoom" class="px-1.5 h-6 text-[11px] font-mono text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium hover:bg-white dark:hover:bg-slate-700 rounded transition">
+              <span id="zoom-level">100%</span>
+            </button>
+            <button id="btn-zoom-in" title="Zoom In (Ctrl +)" class="w-6 h-6 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-white dark:hover:bg-slate-700 rounded text-xs font-semibold transition shadow-none hover:shadow-xs">
+              <i class="fa-solid fa-plus text-[10px]"></i>
             </button>
           </div>
+          
+          <!-- Toolbar: Icon & Action buttons ordered as: examples, import, export, copy, format, theme, clear -->
+          <div id="desktop-toolbar" class="flex items-center gap-1 shrink-0 ml-auto transition-opacity">
+            <!-- 1. Examples (with visible title) -->
+            <div class="relative">
+              <button id="btn-examples-dropdown" title="Load Sample Datasets" class="px-2 h-7 flex items-center gap-1.5 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition text-xs font-medium">
+                <i class="fa-solid fa-lightbulb text-amber-500"></i>
+                <span>Examples</span>
+                <i class="fa-solid fa-chevron-down text-[9px] text-slate-400"></i>
+              </button>
+              <div id="menu-examples" class="dropdown-menu absolute right-0 md:left-0 md:right-auto top-full mt-2 w-36 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700 rounded-xl shadow-2xl opacity-0 invisible transition-all z-[100] overflow-hidden transform origin-top scale-95">
+                <button id="btn-sample-sales" class="w-full text-left px-3 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center"><i class="fa-solid fa-chart-line w-5 text-center text-blue-500"></i> Sales Data</button>
+                <div class="h-px w-full bg-slate-100 dark:bg-slate-700"></div>
+                <button id="btn-sample-project" class="w-full text-left px-3 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center"><i class="fa-solid fa-list-check w-5 text-center text-indigo-500"></i> Project Tasks</button>
+              </div>
+            </div>
+            
+            <div class="h-3.5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5"></div>
+
+            <!-- 2. Import -->
+            <button id="btn-import" title="Import File (.md, .csv, .xlsx)" class="w-7 h-7 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition text-xs">
+              <i class="fa-solid fa-upload text-slate-500 dark:text-slate-400"></i>
+            </button>
+            
+            <!-- 3. Export -->
+            <div class="relative">
+              <button id="btn-export-dropdown" title="Export Table (MD / CSV / XLSX)" class="w-7 h-7 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition text-xs">
+                <i class="fa-solid fa-download text-slate-500 dark:text-slate-400"></i>
+              </button>
+              <div id="menu-export" class="dropdown-menu absolute right-0 top-full mt-2 w-36 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700 rounded-xl shadow-2xl opacity-0 invisible transition-all z-[100] overflow-hidden transform origin-top scale-95">
+                <button id="btn-export-md" class="w-full text-left px-3 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center"><i class="fa-brands fa-markdown w-5 text-center text-slate-500 dark:text-slate-400"></i> Markdown</button>
+                <div class="h-px w-full bg-slate-100 dark:bg-slate-700"></div>
+                <button id="btn-export-csv" class="w-full text-left px-3 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center"><i class="fa-solid fa-file-csv w-5 text-center text-slate-500 dark:text-slate-400"></i> CSV</button>
+                <div class="h-px w-full bg-slate-100 dark:bg-slate-700"></div>
+                <button id="btn-export-xlsx" class="w-full text-left px-3 py-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center"><i class="fa-regular fa-file-excel w-5 text-center text-emerald-500"></i> Excel</button>
+              </div>
+            </div>
+
+            <div class="h-3.5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5"></div>
+
+            <!-- 4. Copy -->
+            <button id="btn-copy" title="Copy Markdown to Clipboard" class="w-7 h-7 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition text-xs">
+              <i class="fa-regular fa-copy text-slate-500 dark:text-slate-400"></i>
+            </button>
+
+            <!-- 5. Format -->
+            <button id="btn-format" title="Format Table (Prettify & Align Pipes)" class="w-7 h-7 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition text-xs">
+              <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i>
+            </button>
+
+            <!-- 6. Dark / System / Light Theme Toggle -->
+            <div class="relative">
+              <button id="btn-theme-dropdown" title="Toggle Theme (Light / Dark / System)" class="w-7 h-7 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition text-xs">
+                <i id="theme-icon-active" class="fa-solid fa-circle-half-stroke text-slate-500 dark:text-slate-400"></i>
+              </button>
+              <div id="menu-theme" class="dropdown-menu absolute right-0 top-full mt-2 w-32 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700 rounded-xl shadow-2xl opacity-0 invisible transition-all z-[100] overflow-hidden transform origin-top scale-95">
+                <button id="btn-theme-light" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2">
+                  <i class="fa-regular fa-sun text-amber-500 w-4 text-center"></i> Light
+                </button>
+                <div class="h-px w-full bg-slate-100 dark:bg-slate-700"></div>
+                <button id="btn-theme-dark" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2">
+                  <i class="fa-regular fa-moon text-indigo-400 w-4 text-center"></i> Dark
+                </button>
+                <div class="h-px w-full bg-slate-100 dark:bg-slate-700"></div>
+                <button id="btn-theme-system" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2">
+                  <i class="fa-solid fa-desktop text-slate-400 w-4 text-center"></i> System
+                </button>
+              </div>
+            </div>
+
+            <div class="h-3.5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5"></div>
+            
+            <!-- 7. Clear -->
+            <button id="btn-clear" title="Clear All Data" class="w-7 h-7 flex items-center justify-center text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition text-xs">
+              <i class="fa-regular fa-trash-can"></i>
+            </button>
+          </div>
+
+          <!-- Collapsed More Hamburger (Shown when side panel is narrow or on mobile) -->
+          <div id="mobile-menu-wrapper" class="items-center shrink-0 ml-auto relative hidden">
+            <button id="btn-mobile-menu" title="More Options" class="w-7 h-7 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition text-xs">
+              <i class="fa-solid fa-ellipsis-vertical"></i>
+            </button>
+            <div id="menu-mobile" class="dropdown-menu absolute right-0 top-full mt-2 w-44 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200/60 dark:border-slate-700 rounded-xl shadow-2xl opacity-0 invisible transition-all z-[100] overflow-hidden transform origin-top scale-95">
+              <div class="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Examples</div>
+              <button id="btn-sample-sales-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2"><i class="fa-solid fa-chart-line w-4 text-center text-blue-500"></i> Sales Data</button>
+              <button id="btn-sample-project-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2"><i class="fa-solid fa-list-check w-4 text-center text-indigo-500"></i> Project Tasks</button>
+              <div class="h-px w-full bg-slate-100 dark:bg-slate-700 my-0.5"></div>
+
+              <div class="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">File</div>
+              <button id="btn-import-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2"><i class="fa-solid fa-upload w-4 text-center text-slate-500 dark:text-slate-400"></i> Import File</button>
+              <button id="btn-export-md-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2"><i class="fa-brands fa-markdown w-4 text-center text-slate-500 dark:text-slate-400"></i> Export MD</button>
+              <button id="btn-export-csv-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2"><i class="fa-solid fa-file-csv w-4 text-center text-slate-500 dark:text-slate-400"></i> Export CSV</button>
+              <button id="btn-export-xlsx-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2"><i class="fa-regular fa-file-excel w-4 text-center text-emerald-500"></i> Export Excel</button>
+              <div class="h-px w-full bg-slate-100 dark:bg-slate-700 my-0.5"></div>
+
+              <div class="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actions</div>
+              <button id="btn-copy-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2"><i class="fa-regular fa-copy w-4 text-center text-slate-400"></i> Copy Markdown</button>
+              <button id="btn-format-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles w-4 text-center text-amber-500"></i> Format Table</button>
+              <div class="h-px w-full bg-slate-100 dark:bg-slate-700 my-0.5"></div>
+
+              <div class="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Theme</div>
+              <button id="btn-theme-light-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2"><i class="fa-regular fa-sun text-amber-500 w-4 text-center"></i> Light Theme</button>
+              <button id="btn-theme-dark-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2"><i class="fa-regular fa-moon text-indigo-400 w-4 text-center"></i> Dark Theme</button>
+              <button id="btn-theme-system-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition flex items-center gap-2"><i class="fa-solid fa-desktop text-slate-400 w-4 text-center"></i> System Default</button>
+              <div class="h-px w-full bg-slate-100 dark:bg-slate-700 my-0.5"></div>
+
+              <button id="btn-clear-mobile" class="w-full text-left px-3 py-2 text-xs hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 transition flex items-center gap-2"><i class="fa-regular fa-trash-can w-4 text-center"></i> Clear All</button>
+            </div>
+          </div>
+          
+          <!-- Hidden file input for import -->
+          <input type="file" id="file-upload" class="hidden" accept=".md,.csv,.xlsx,.xls" />
         </div>
 
-        <!-- Textarea Input Area -->
-        <div class="flex-1 relative p-3 bg-slate-50 min-h-0">
+        <!-- Textarea Input Area (Reduced outer padding, horizontal scrolling enabled, nowrap) -->
+        <div class="flex-1 relative p-1 md:p-1.5 min-h-0 bg-slate-100/50 dark:bg-slate-900/50">
           <textarea 
             id="markdown-input" 
             spellcheck="false"
+            wrap="off"
             placeholder="Paste or write your Markdown table here..." 
-            class="w-full h-full p-4 font-mono text-sm bg-white border border-slate-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none leading-relaxed text-slate-800"
+            class="w-full h-full p-2.5 md:p-3 font-mono text-[13px] bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-800 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 resize-none leading-relaxed transition-all overflow-auto whitespace-pre placeholder-slate-400 dark:placeholder-slate-500"
           ></textarea>
         </div>
 
         <!-- Footer Info Bar -->
-        <div class="bg-white border-t border-slate-200 px-4 py-1.5 text-[11px] text-slate-500 flex justify-between items-center shrink-0">
-          <span id="stat-rows">0 rows detected</span>
-          <span id="stat-cols">0 columns detected</span>
+        <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-t border-slate-200/60 dark:border-slate-800 px-4 py-1.5 text-[11px] text-slate-500 dark:text-slate-400 flex justify-between items-center shrink-0 transition-colors">
+          <div class="flex gap-4">
+            <span id="stat-rows">0 rows detected</span>
+            <span id="stat-cols">0 columns detected</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <a href="../" class="hover:text-slate-800 dark:hover:text-slate-200 transition flex items-center gap-1"><i class="fa-solid fa-arrow-left"></i> Apps</a>
+            <a href="https://github.com/rahuldhole/gist" target="_blank" class="hover:text-slate-800 dark:hover:text-slate-200 transition flex items-center gap-1"><i class="fa-brands fa-github"></i> GitHub</a>
+          </div>
         </div>
       </section>
 
       <!-- Draggable Divider Resizer Line -->
-      <div id="resizer" class="resizer h-2 md:h-full w-full md:w-2 shrink-0 flex items-center justify-center cursor-row-resize md:cursor-col-resize border-y md:border-y-0 md:border-x border-slate-300 group hover:border-blue-500 transition-colors">
-        <div class="hidden md:flex flex-col gap-1 items-center justify-center text-slate-400 group-hover:text-white pointer-events-none">
-          <i class="fa-solid fa-ellipsis-vertical text-[10px]"></i>
-        </div>
-        <div class="flex md:hidden gap-1 items-center justify-center text-slate-400 group-hover:text-white pointer-events-none">
-          <i class="fa-solid fa-ellipsis text-[10px]"></i>
-        </div>
+      <div id="resizer" class="resizer h-1.5 md:h-full w-full md:w-1.5 shrink-0 flex items-center justify-center cursor-row-resize md:cursor-col-resize z-20">
       </div>
 
       <!-- Right Side: Univer Sheet View Panel -->
-      <section id="right-panel" class="w-full md:w-1/2 flex flex-col bg-white h-1/2 md:h-full min-w-[150px] min-h-[100px]">
-        <!-- Panel Bar -->
-        <div class="bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center justify-between shrink-0">
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-table text-emerald-700 text-base"></i>
-            <span class="text-xs font-bold text-slate-700 tracking-wider uppercase">Live Interactive Sheet</span>
-          </div>
-          <span class="text-[11px] text-slate-500 bg-slate-200 px-2 py-0.5 rounded">
-            <i class="fa-solid fa-pen-to-square text-xs mr-1 text-slate-600"></i> Edit cells to update Markdown
-          </span>
-        </div>
-
+      <section id="right-panel" class="w-full md:w-1/2 flex flex-col bg-white h-1/2 md:h-full min-w-[150px] min-h-[100px] relative">
+        
         <!-- Sheet Container -->
         <div class="flex-1 relative bg-slate-100 overflow-hidden min-h-0">
           <div id="univer-container" class="absolute inset-0"></div>
@@ -532,11 +647,11 @@ Disable-Footer: true
     function showSyncIndicator(direction) {
       clearTimeout(statusResetTimer);
       syncText.textContent = `Synced (${direction})`;
-      syncStatus.className = 'px-2.5 py-0.5 text-[10px] bg-blue-100 text-blue-800 rounded-full font-semibold flex items-center gap-1.5 transition-all shadow-sm';
+      syncStatus.className = 'ml-2 px-2.5 py-0.5 text-[10px] bg-blue-50 text-blue-600 rounded-full font-medium flex items-center gap-1.5 transition-all border border-blue-100/50 shadow-sm';
       
       statusResetTimer = setTimeout(() => {
-        syncText.textContent = '2-Way Sync Active';
-        syncStatus.className = 'px-2.5 py-0.5 text-[10px] bg-emerald-100 text-emerald-800 rounded-full font-medium flex items-center gap-1.5 transition-all';
+        syncText.textContent = 'Live';
+        syncStatus.className = 'ml-2 px-2.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-600 rounded-full font-medium flex items-center gap-1.5 transition-all border border-emerald-100/50';
       }, 1200);
     }
 
@@ -589,47 +704,70 @@ Disable-Footer: true
     });
 
     // Sample Data Buttons
-    document.getElementById('btn-sample-sales').addEventListener('click', () => {
+    bindClick('btn-sample-sales', () => {
       mdInput.value = SAMPLES.sales;
       updateSpreadsheet(parseMarkdownTable(mdInput.value));
     });
 
-    document.getElementById('btn-sample-project').addEventListener('click', () => {
+    bindClick('btn-sample-project', () => {
       mdInput.value = SAMPLES.project;
       updateSpreadsheet(parseMarkdownTable(mdInput.value));
     });
 
-    document.getElementById('btn-clear').addEventListener('click', () => {
+    bindClick('btn-clear', () => {
       mdInput.value = '';
       updateSpreadsheet([]);
     });
 
-    document.getElementById('btn-format').addEventListener('click', () => {
+    function bindClick(baseId, handler) {
+      const el1 = document.getElementById(baseId);
+      const el2 = document.getElementById(baseId + '-mobile');
+      if (el1) el1.addEventListener('click', handler);
+      if (el2) el2.addEventListener('click', handler);
+    }
+
+    bindClick('btn-format', () => {
       formatMarkdownTable();
     });
 
-    document.getElementById('btn-copy').addEventListener('click', () => {
+    bindClick('btn-copy', () => {
       if (!mdInput.value) return;
       document.execCommand('copy');
       const btn = document.getElementById('btn-copy');
-      const originalHTML = btn.innerHTML;
-      btn.innerHTML = '<i class="fa-solid fa-check text-emerald-600"></i> Copied!';
-      setTimeout(() => btn.innerHTML = originalHTML, 1500);
+      if (btn) {
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check text-emerald-600"></i> Copied!';
+        setTimeout(() => btn.innerHTML = originalHTML, 1500);
+      }
+      const btnMobile = document.getElementById('btn-copy-mobile');
+      if (btnMobile) {
+        const originalHTMLMobile = btnMobile.innerHTML;
+        btnMobile.innerHTML = '<i class="fa-solid fa-check text-emerald-600"></i> Copied!';
+        setTimeout(() => btnMobile.innerHTML = originalHTMLMobile, 1500);
+      }
     });
 
     // --- Import & Export Logic ---
     const fileUpload = document.getElementById('file-upload');
+    const dropzoneOverlay = document.getElementById('dropzone-overlay');
     
-    document.getElementById('btn-import').addEventListener('click', () => {
+    bindClick('btn-import', () => {
       fileUpload.click();
     });
 
-    fileUpload.addEventListener('change', (e) => {
-      const file = e.target.files[0];
+    /**
+     * Process an imported file (from file input or drag-and-drop)
+     */
+    function processImportFile(file) {
       if (!file) return;
 
       const reader = new FileReader();
       const ext = file.name.split('.').pop().toLowerCase();
+
+      if (!['md', 'csv', 'xlsx', 'xls'].includes(ext)) {
+        alert('Unsupported file format. Please drop a Markdown (.md), CSV (.csv), or Excel (.xlsx, .xls) file.');
+        return;
+      }
 
       reader.onload = (event) => {
         const data = event.target.result;
@@ -644,7 +782,7 @@ Disable-Footer: true
             const worksheet = workbook.Sheets[firstSheetName];
             const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
             
-            // Format matrix
+            // Format matrix and update both sheet and markdown view
             updateSpreadsheet(json);
             mdInput.value = matrixToMarkdown(json);
           } catch (err) {
@@ -660,8 +798,60 @@ Disable-Footer: true
         reader.readAsArrayBuffer(file);
       }
       
-      // Reset input so the same file can be selected again
+      // Reset file input
       fileUpload.value = '';
+    }
+
+    fileUpload.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) processImportFile(file);
+    });
+
+    // Global Drag and Drop Event Listeners (Drop anywhere on app)
+    let dragCounter = 0;
+
+    window.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragCounter++;
+      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+        if (dropzoneOverlay) {
+          dropzoneOverlay.classList.remove('opacity-0', 'invisible');
+          dropzoneOverlay.classList.add('opacity-100', 'visible');
+        }
+      }
+    });
+
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    });
+
+    window.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        if (dropzoneOverlay) {
+          dropzoneOverlay.classList.add('opacity-0', 'invisible');
+          dropzoneOverlay.classList.remove('opacity-100', 'visible');
+        }
+      }
+    });
+
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      if (dropzoneOverlay) {
+        dropzoneOverlay.classList.add('opacity-0', 'invisible');
+        dropzoneOverlay.classList.remove('opacity-100', 'visible');
+      }
+
+      const files = e.dataTransfer ? e.dataTransfer.files : null;
+      if (files && files.length > 0) {
+        processImportFile(files[0]);
+      }
     });
 
     function downloadFile(content, filename, type) {
@@ -676,7 +866,7 @@ Disable-Footer: true
       URL.revokeObjectURL(url);
     }
 
-    document.getElementById('btn-export-md').addEventListener('click', () => {
+    bindClick('btn-export-md', () => {
       const matrix = getSheetMatrix();
       const mdContent = matrixToMarkdown(matrix);
       if (!mdContent) return alert('Table is empty!');
@@ -697,8 +887,133 @@ Disable-Footer: true
       }
     }
 
-    document.getElementById('btn-export-csv').addEventListener('click', () => exportSpreadsheet('csv'));
-    document.getElementById('btn-export-xlsx').addEventListener('click', () => exportSpreadsheet('xlsx'));
+    bindClick('btn-export-csv', () => exportSpreadsheet('csv'));
+    bindClick('btn-export-xlsx', () => exportSpreadsheet('xlsx'));
+
+    // Zoom State and Controls for Markdown Editor
+    let currentZoom = 100; // 100%
+    const minZoom = 60;
+    const maxZoom = 200;
+    const zoomStep = 10;
+    const zoomLevelEl = document.getElementById('zoom-level');
+
+    function applyZoom(zoom) {
+      currentZoom = Math.max(minZoom, Math.min(maxZoom, zoom));
+      if (zoomLevelEl) zoomLevelEl.textContent = `${currentZoom}%`;
+      // Base font size is 13px
+      const calculatedFontSize = (13 * (currentZoom / 100)).toFixed(1);
+      mdInput.style.fontSize = `${calculatedFontSize}px`;
+    }
+
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    const btnZoomReset = document.getElementById('btn-zoom-reset');
+
+    if (btnZoomIn) {
+      btnZoomIn.addEventListener('click', () => applyZoom(currentZoom + zoomStep));
+    }
+    if (btnZoomOut) {
+      btnZoomOut.addEventListener('click', () => applyZoom(currentZoom - zoomStep));
+    }
+    if (btnZoomReset) {
+      btnZoomReset.addEventListener('click', () => applyZoom(100));
+    }
+
+    // Ctrl + / Ctrl - keyboard zoom shortcut when focused in textarea
+    mdInput.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          applyZoom(currentZoom + zoomStep);
+        } else if (e.key === '-') {
+          e.preventDefault();
+          applyZoom(currentZoom - zoomStep);
+        } else if (e.key === '0') {
+          e.preventDefault();
+          applyZoom(100);
+        }
+      }
+    });
+
+    // --- Theme (Light / Dark / System) Management ---
+    let currentTheme = localStorage.getItem('md_spreadsheet_theme') || 'system';
+    const themeIconActive = document.getElementById('theme-icon-active');
+
+    function applyTheme(theme) {
+      currentTheme = theme;
+      localStorage.setItem('md_spreadsheet_theme', theme);
+      
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isDark = theme === 'dark' || (theme === 'system' && prefersDark);
+      
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+
+      // Update active toolbar theme icon
+      if (themeIconActive) {
+        if (theme === 'light') {
+          themeIconActive.className = 'fa-regular fa-sun text-amber-500';
+        } else if (theme === 'dark') {
+          themeIconActive.className = 'fa-regular fa-moon text-indigo-400';
+        } else {
+          themeIconActive.className = 'fa-solid fa-circle-half-stroke text-slate-500 dark:text-slate-400';
+        }
+      }
+    }
+
+    // Bind theme buttons (Desktop & Mobile)
+    bindClick('btn-theme-light', () => applyTheme('light'));
+    bindClick('btn-theme-dark', () => applyTheme('dark'));
+    bindClick('btn-theme-system', () => applyTheme('system'));
+
+    // Listen for OS system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (currentTheme === 'system') {
+        applyTheme('system');
+      }
+    });
+
+    // Apply initial theme immediately
+    applyTheme(currentTheme);
+
+    // Dropdown Click Handlers
+    function setupDropdown(btnId, menuId) {
+      const btn = document.getElementById(btnId);
+      const menu = document.getElementById(menuId);
+      if (!btn || !menu) return;
+      
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = menu.classList.contains('opacity-0');
+        
+        // Hide all dropdowns
+        document.querySelectorAll('.dropdown-menu').forEach(m => {
+          m.classList.add('opacity-0', 'invisible', 'scale-95');
+          m.classList.remove('opacity-100', 'visible', 'scale-100');
+        });
+        
+        // Toggle this one
+        if (isHidden) {
+          menu.classList.remove('opacity-0', 'invisible', 'scale-95');
+          menu.classList.add('opacity-100', 'visible', 'scale-100');
+        }
+      });
+    }
+
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.dropdown-menu').forEach(m => {
+        m.classList.add('opacity-0', 'invisible', 'scale-95');
+        m.classList.remove('opacity-100', 'visible', 'scale-100');
+      });
+    });
+
+    setupDropdown('btn-examples-dropdown', 'menu-examples');
+    setupDropdown('btn-export-dropdown', 'menu-export');
+    setupDropdown('btn-theme-dropdown', 'menu-theme');
+    setupDropdown('btn-mobile-menu', 'menu-mobile');
 
     // Start application on window load
     window.onload = function() {
@@ -799,6 +1114,37 @@ Disable-Footer: true
       resizer.addEventListener('mousedown', startDrag);
       resizer.addEventListener('touchstart', startDrag, { passive: false });
 
+      // Update responsive toolbar collapse based on left panel width (not whole window)
+      function updatePanelResponsiveToolbar() {
+        const width = leftPanel.offsetWidth;
+        const desktopToolbar = document.getElementById('desktop-toolbar');
+        const mobileMenuWrapper = document.getElementById('mobile-menu-wrapper');
+        
+        if (!desktopToolbar || !mobileMenuWrapper) return;
+        
+        // When left panel width is below 380px, collapse icon bar into hamburger menu
+        if (width < 380) {
+          desktopToolbar.classList.add('hidden');
+          desktopToolbar.classList.remove('flex');
+          mobileMenuWrapper.classList.remove('hidden');
+          mobileMenuWrapper.classList.add('flex');
+        } else {
+          desktopToolbar.classList.remove('hidden');
+          desktopToolbar.classList.add('flex');
+          mobileMenuWrapper.classList.add('hidden');
+          mobileMenuWrapper.classList.remove('flex');
+        }
+      }
+
+      // Observe left panel width changes specifically (via drag resize or window resize)
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => {
+          updatePanelResponsiveToolbar();
+        });
+        ro.observe(leftPanel);
+      }
+      updatePanelResponsiveToolbar();
+
       // Handle viewport resize transitions gracefully
       window.addEventListener('resize', () => {
         if (!isDragging) {
@@ -814,6 +1160,7 @@ Disable-Footer: true
             }
           }
         }
+        updatePanelResponsiveToolbar();
       });
     }
   </script>
