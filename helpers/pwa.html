@@ -108,6 +108,17 @@
         }
       }, 1000);
 
+      if (window.location.hash === '#install') {
+        setTimeout(() => {
+          if (pill) {
+            pill.classList.add('show');
+            pill.style.boxShadow = '0 0 0 4px rgba(99, 102, 241, 0.4), 0 0 20px rgba(99, 102, 241, 0.6)';
+            pill.style.transform = 'translateY(0) scale(1.1)';
+            history.replaceState(null, null, window.location.pathname + window.location.search);
+          }
+        }, 100);
+      }
+
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
