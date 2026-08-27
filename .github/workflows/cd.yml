@@ -41,7 +41,7 @@ jobs:
           go-version: '1.21'
 
       - name: Compile Tool
-        run: go build -o gist-tool gist.go && chmod +x gist-tool
+        run: go build -o gist-tool . && chmod +x gist-tool
 
       - name: Run build
         run: ./gist-tool build
