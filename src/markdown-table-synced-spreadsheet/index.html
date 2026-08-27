@@ -663,8 +663,12 @@ Disable-Footer: true
       const { LocaleType, mergeLocales } = UniverCore;
       const { UniverSheetsCorePreset } = UniverPresetSheetsCore;
 
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const initialDark = currentTheme === 'dark' || (currentTheme === 'system' && prefersDark);
+
       const result = createUniver({
         locale: LocaleType.EN_US,
+        darkMode: initialDark,
         locales: {
           [LocaleType.EN_US]: mergeLocales(UniverPresetSheetsCoreEnUS),
         },
@@ -950,6 +954,11 @@ Disable-Footer: true
         document.documentElement.classList.add('dark');
       } else {
         document.documentElement.classList.remove('dark');
+      }
+
+      // Sync Univer spreadsheet theme
+      if (univerAPI && typeof univerAPI.toggleDarkMode === 'function') {
+        univerAPI.toggleDarkMode(isDark);
       }
 
       // Update active toolbar theme icon
