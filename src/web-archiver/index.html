@@ -1,0 +1,1243 @@
+<!-- APP-META
+Title: WebArchiver Studio
+Description: WebArchiver Studio - In-browser website downloader. Scrape, rewrite & save websites directly to local disk or ZIP — one HTML file, zero backend.
+Category: Utility
+Icon: fa-solid fa-cloud-arrow-down
+Image: https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop
+Status: published
+-->
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebArchiver Studio - In-Browser Website Downloader</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdfa', 100: '#ccfbf1', 400: '#2dd4bf',
+              500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 900: '#134e4a',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: rgba(45, 212, 191, 0.25); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(45, 212, 191, 0.5); }
+    .code-editor { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .export-disabled { opacity: 0.4; pointer-events: none; filter: grayscale(0.4); }
+    .feat-badge { white-space: nowrap; }
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 min-h-full flex flex-col antialiased selection:bg-teal-500 selection:text-slate-950">
+
+<header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30 px-4 py-3">
+  <div class="flex items-center justify-between gap-4 w-full">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-cyan-400 flex items-center justify-center text-slate-950 shadow-lg shadow-teal-500/20 font-bold text-xl shrink-0">
+        <i class="fa-solid fa-cloud-arrow-down"></i>
+      </div>
+      <div class="min-w-0 flex flex-col justify-center">
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-base sm:text-lg leading-tight text-white tracking-tight truncate">WebArchiver Studio</h1>
+          <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20 shrink-0 hidden sm:inline-block">Client-Side Engine</span>
+        </div>
+        <p class="text-xs text-slate-400 hidden sm:block truncate mt-0.5">Scrape, rewrite &amp; save websites directly to local disk or ZIP — one HTML file, zero backend</p>
+      </div>
+    </div>
+
+    <button 
+      type="button" 
+      onclick="showHelpModal()" 
+      title="How it works" 
+      aria-label="How it works"
+      class="flex items-center justify-center gap-1.5 p-2 sm:px-3.5 sm:py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-teal-500/20 transition active:scale-95 shrink-0">
+      <i class="fa-solid fa-circle-question text-base sm:text-sm"></i>
+      <span class="hidden sm:inline">How it works</span>
+    </button>
+  </div>
+</header>
+
+  <!-- FEATURE / INTRO BANNER -->
+  <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-5">
+    <div class="bg-gradient-to-br from-slate-900 to-slate-900/60 border border-slate-800 rounded-2xl p-4 sm:p-5">
+      <p class="text-sm text-slate-300 leading-relaxed max-w-3xl">
+        Point it at any page, and it fetches the HTML, rewrites every image/CSS/script link to a local relative path, and lets you save the result as a folder, a <code class="bg-slate-800 px-1 rounded text-teal-300">.zip</code>, or a single self-contained <code class="bg-slate-800 px-1 rounded text-teal-300">index.html</code> — no server, no install, no account. Everything below runs entirely in this browser tab.
+      </p>
+      <div class="flex flex-wrap gap-2 mt-3.5 items-center">
+        <button id="fsSupportedBadge" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-700/50 bg-emerald-900/30 text-emerald-300 text-[11px] hover:bg-emerald-900/50 transition">
+          <i class="fa-solid fa-hard-drive"></i>
+          <span>FS API <strong id="fsApiStatus" class="font-bold">Checking...</strong></span>
+        </button>
+        <span class="feat-badge text-[11px] px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300"><i class="fa-solid fa-shield-halved text-teal-400 mr-1.5"></i>100% client-side</span>
+        <span class="feat-badge text-[11px] px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300"><i class="fa-solid fa-folder-tree text-teal-400 mr-1.5"></i>Save straight to a local folder</span>
+        <span class="feat-badge text-[11px] px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300"><i class="fa-solid fa-file-zipper text-teal-400 mr-1.5"></i>.zip & single-file export</span>
+        <span class="feat-badge text-[11px] px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300"><i class="fa-solid fa-droplet text-teal-400 mr-1.5"></i>Low-RAM streaming mode for large sites</span>
+        <span class="feat-badge text-[11px] px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300"><i class="fa-solid fa-desktop text-teal-400 mr-1.5"></i>Offline sandbox preview</span>
+        <span class="feat-badge text-[11px] px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300"><i class="fa-solid fa-font text-teal-400 mr-1.5"></i>Fonts & CSS background images included</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN WRAPPER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- LEFT PANEL: Controls → Console → Status (process-feedback cluster) -->
+    <section class="lg:col-span-5 flex flex-col gap-5">
+
+      <!-- TARGET URL CARD -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider mb-4 flex items-center justify-between">
+          <span><i class="fa-solid fa-link text-teal-400 mr-2"></i>Target Website</span>
+          <span class="text-[11px] text-slate-500 normal-case">Step 1: Enter Address</span>
+        </h2>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">Page URL</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                <i class="fa-solid fa-globe"></i>
+              </span>
+              <input type="url" id="targetUrlInput" placeholder="https://example.com" value="https://example.com"
+                class="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-teal-500 text-slate-100 placeholder-slate-600 transition" />
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-1.5 pt-1">
+            <span class="text-[11px] text-slate-500">Samples:</span>
+            <button onclick="setSample('https://example.com')" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Example.com</button>
+            <button onclick="setSample('https://news.ycombinator.com')" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">HackerNews</button>
+            <button onclick="setSample('https://wikipedia.org')" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Wikipedia</button>
+          </div>
+
+          <div class="pt-2 border-t border-slate-800/80">
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-xs font-medium text-slate-400">CORS Fetch Strategy</label>
+              <button onclick="toggleProxyInfo()" class="text-[11px] text-teal-400 hover:underline">Why is this needed?</button>
+            </div>
+            <select id="proxySelect" onchange="onProxySelectChange()" class="w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-teal-500">
+              <option value="allorigins">AllOrigins Proxy (Public CORS Tunnel)</option>
+              <option value="corsproxy">CorsProxy.io (Fast CDN Relay)</option>
+              <option value="codetabs">CodeTabs Proxy</option>
+              <option value="custom">Custom Proxy / Localhost Relay</option>
+              <option value="direct">Direct Fetch (Disabled CORS / Extension / Same Origin)</option>
+            </select>
+            <input type="text" id="customProxyInput" placeholder="https://my-custom-proxy.worker.dev/?url=" class="hidden mt-2 w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-teal-500" />
+          </div>
+
+          <div class="space-y-2 pt-2 border-t border-slate-800/80">
+            <label class="text-xs font-medium text-slate-400">Archival Options</label>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 cursor-pointer hover:border-slate-700">
+                <input type="checkbox" id="optImages" checked class="accent-teal-500 rounded" />
+                <span>Download Images</span>
+              </label>
+              <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 cursor-pointer hover:border-slate-700">
+                <input type="checkbox" id="optStyles" checked class="accent-teal-500 rounded" />
+                <span title="Also fetches fonts & background images referenced inside CSS via url()">Fetch CSS, Fonts & BG Images</span>
+              </label>
+              <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 cursor-pointer hover:border-slate-700">
+                <input type="checkbox" id="optScripts" checked class="accent-teal-500 rounded" />
+                <span title="Saves .js files as static assets — they will NOT execute in the sandbox preview">Download JS (static only)</span>
+              </label>
+              <label id="optInlineLabel" class="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 cursor-pointer hover:border-slate-700">
+                <input type="checkbox" id="optInline" class="accent-teal-500 rounded" onchange="onInlineToggle()" />
+                <span title="Bakes images, fonts & CSS directly into the HTML as base64/data URIs">Self-Contained File</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- LOW-RAM STREAMING MODE -->
+          <div id="lowRamSection" class="space-y-2 pt-2 border-t border-slate-800/80">
+            <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950/50 border border-slate-800/80 cursor-pointer hover:border-slate-700 text-xs">
+              <input type="checkbox" id="optLowRam" class="accent-teal-500 rounded" onchange="onLowRamToggle()" />
+              <span><i class="fa-solid fa-droplet text-teal-400 mr-1"></i>Low-RAM Streaming Mode <span class="text-slate-500">— writes each file to disk immediately, freeing memory as it goes</span></span>
+            </label>
+            <div id="lowRamFolderRow" class="hidden space-y-2 pl-1">
+              <button onclick="pickStreamingFolder()" class="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-200 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-folder-open"></i>
+                <span id="streamingFolderLabel">Choose save folder (required before starting)</span>
+              </button>
+              <p class="text-[11px] text-slate-500 leading-relaxed">Best for large sites. Assets are written straight to the folder in small batches as they download, then cleared from memory — so RAM usage stays flat instead of growing with the site size. Because of this, ZIP export, Self-Contained mode, and Sandbox Preview aren't available while this is on.</p>
+            </div>
+            <p id="lowRamUnsupportedNote" class="hidden text-[11px] text-amber-400 pl-1">Streaming mode needs the File System Access API, not supported in this browser.</p>
+          </div>
+
+          <button id="scrapeBtn" onclick="startScrapeProcess()" class="w-full mt-1 py-3 px-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-bold text-sm shadow-lg shadow-teal-500/20 active:scale-[0.99] transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-bolt"></i>
+            <span>Fetch & Analyze Website</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- REAL-TIME LOGS — right below Start, since it's the first thing you watch -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex-1 flex flex-col min-h-[180px]">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
+            Process Console
+          </span>
+          <button onclick="clearLogs()" class="text-[11px] text-slate-500 hover:text-slate-300">Clear</button>
+        </div>
+        <div id="logConsole" class="flex-1 bg-slate-950 rounded-xl p-3 text-[11px] code-editor overflow-y-auto max-h-64 text-slate-400 space-y-1 border border-slate-800/80">
+          <div class="text-slate-500">// Ready. Enter a URL and click 'Fetch & Analyze Website'</div>
+        </div>
+      </div>
+
+      <!-- STATUS STRIP — grouped with console, both are "what's happening now" -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center">
+          <div class="text-[10px] text-slate-400 font-medium">Status</div>
+          <div id="statStatus" class="text-xs sm:text-sm font-bold text-slate-200 mt-0.5 truncate">Idle</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center">
+          <div class="text-[10px] text-slate-400 font-medium">Unique Assets</div>
+          <div id="statTotalAssets" class="text-xs sm:text-sm font-bold text-teal-400 mt-0.5">0</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center">
+          <div class="text-[10px] text-slate-400 font-medium">Downloaded</div>
+          <div id="statDownloaded" class="text-xs sm:text-sm font-bold text-emerald-400 mt-0.5">0%</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center">
+          <div class="text-[10px] text-slate-400 font-medium">Est. Size</div>
+          <div id="statPayloadSize" class="text-xs sm:text-sm font-bold text-cyan-400 mt-0.5">0 KB</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT PANEL: Save/Export → Tabs (output cluster) -->
+    <section class="lg:col-span-7 flex flex-col gap-5">
+
+      <!-- SAVE & EXPORT ACTION CARD -->
+      <div id="exportCard" class="export-disabled bg-slate-900 border border-teal-500/30 rounded-2xl p-5 shadow-xl relative overflow-hidden transition-all duration-300">
+        <div class="absolute -right-8 -top-8 w-28 h-28 bg-teal-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+        <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider mb-2 flex items-center justify-between flex-wrap gap-1">
+          <span><i class="fa-solid fa-floppy-disk text-teal-400 mr-2"></i>Save to Disk</span>
+          <span class="text-[11px] text-teal-400 font-semibold" id="readyCountBadge">Run a scrape first</span>
+        </h2>
+        <p class="text-xs text-slate-400 mb-4">Choose how you want to save your localized website:</p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button id="saveFsBtn" onclick="saveToFileSystem()" class="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-medium text-sm transition flex items-center justify-between group">
+            <div class="flex items-center gap-3 text-left">
+              <div class="w-8 h-8 rounded-lg bg-teal-500/20 text-teal-400 flex items-center justify-center group-hover:scale-110 transition shrink-0">
+                <i class="fa-solid fa-folder-tree"></i>
+              </div>
+              <div>
+                <div class="font-semibold text-xs text-slate-200">Save to Local Folder</div>
+                <div class="text-[11px] text-slate-400">File System Access API</div>
+              </div>
+            </div>
+            <i class="fa-solid fa-arrow-right text-xs text-slate-400 group-hover:text-white group-hover:translate-x-1 transition shrink-0"></i>
+          </button>
+
+          <button id="zipExportBtn" onclick="exportAsZip()" class="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-medium text-sm transition flex items-center justify-between group">
+            <div class="flex items-center gap-3 text-left">
+              <div class="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center group-hover:scale-110 transition shrink-0">
+                <i class="fa-solid fa-file-zipper"></i>
+              </div>
+              <div>
+                <div class="font-semibold text-xs text-slate-200">Download .ZIP Package</div>
+                <div class="text-[11px] text-slate-400">Universal archive</div>
+              </div>
+            </div>
+            <i class="fa-solid fa-download text-xs text-slate-400 group-hover:text-white group-hover:translate-x-1 transition shrink-0"></i>
+          </button>
+        </div>
+
+        <button onclick="downloadSingleHtml()" class="w-full mt-3 py-2 px-3 rounded-lg bg-slate-950/80 hover:bg-slate-950 border border-slate-800 text-slate-300 text-xs transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-code"></i>
+          <span>Download single modified <code>index.html</code></span>
+        </button>
+
+        <p id="lowRamExportNote" class="hidden text-[11px] text-amber-400 mt-3 leading-relaxed"><i class="fa-solid fa-circle-info mr-1"></i>Low-RAM Streaming Mode was active — assets were already written to your chosen folder during the run. ZIP and Preview need everything in memory at once, so they're disabled for this run; the folder save button re-writes the same files if needed.</p>
+      </div>
+
+      <!-- TABS CONTAINER -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl flex-1 flex flex-col shadow-xl overflow-hidden min-h-[420px]">
+
+        <div class="border-b border-slate-800 px-2 sm:px-4 pt-3 flex items-center justify-between gap-2 bg-slate-950/40 overflow-x-auto">
+          <div class="flex items-center gap-1">
+            <button onclick="switchTab('assets')" id="tabBtn-assets" class="px-3.5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-teal-400 text-teal-300 bg-slate-800/60 transition flex items-center gap-2 shrink-0">
+              <i class="fa-solid fa-list-check"></i>
+              <span>Assets</span>
+              <span id="tabCountBadge" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-teal-500/20 text-teal-300">0</span>
+            </button>
+            <button onclick="switchTab('preview')" id="tabBtn-preview" class="px-3.5 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition flex items-center gap-2 shrink-0">
+              <i class="fa-solid fa-desktop"></i>
+              <span>Preview</span>
+            </button>
+            <button onclick="switchTab('source')" id="tabBtn-source" class="px-3.5 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition flex items-center gap-2 shrink-0">
+              <i class="fa-solid fa-code"></i>
+              <span>HTML</span>
+            </button>
+          </div>
+
+          <div class="text-xs shrink-0">
+            <button onclick="copyRewrittenHtml()" id="copyHtmlBtn" class="hidden text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800 transition">
+              <i class="fa-regular fa-copy mr-1"></i>Copy
+            </button>
+          </div>
+        </div>
+
+        <div id="tabContent-assets" class="p-4 flex-1 flex flex-col overflow-hidden">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-3 flex-wrap gap-2">
+            <span>Discovered page elements and rewritten relative paths:</span>
+            <div class="flex gap-2">
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Cached</span>
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-400"></span> Failed</span>
+            </div>
+          </div>
+
+          <div class="flex-1 border border-slate-800 rounded-xl overflow-y-auto bg-slate-950/70 p-1 divide-y divide-slate-800/60" id="assetListContainer">
+            <div class="text-center py-12 text-slate-600">
+              <i class="fa-solid fa-box-open text-3xl mb-2 block"></i>
+              No assets discovered yet. Run the scraper to populate.
+            </div>
+          </div>
+        </div>
+
+        <div id="tabContent-preview" class="p-4 flex-1 hidden flex flex-col">
+          <div class="bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs px-3 py-2 rounded-lg mb-3 flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>Isolated sandbox — scripts don't execute here, only layout/styling/images are previewed.</span>
+            </div>
+            <button onclick="refreshPreview()" class="text-amber-200 underline text-[11px] hover:text-white shrink-0">Refresh Frame</button>
+          </div>
+          <div id="previewUnavailableNotice" class="hidden flex-1 flex items-center justify-center text-center text-xs text-slate-500 border border-slate-800 rounded-xl bg-slate-950/40 p-6">
+            Preview isn't available for this run — Low-RAM Streaming Mode discarded asset data from memory as it saved each file to disk. Your files are already in the folder you chose.
+          </div>
+          <div id="previewFrameWrap" class="flex-1 bg-white rounded-xl overflow-hidden border border-slate-700 relative">
+            <iframe id="previewIframe" sandbox="allow-same-origin" class="w-full h-full bg-white"></iframe>
+          </div>
+        </div>
+
+        <div id="tabContent-source" class="p-4 flex-1 hidden flex flex-col">
+          <div class="text-xs text-slate-400 mb-2">Rewritten HTML code pointing all links to local directory structure:</div>
+          <textarea id="sourceCodeViewer" readonly class="flex-1 w-full bg-slate-950 rounded-xl p-3 text-xs code-editor text-teal-300/90 border border-slate-800 resize-none focus:outline-none min-h-[240px]"></textarea>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- HELP MODAL -->
+  <div id="helpModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 max-w-lg w-full rounded-2xl p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-lg text-white flex items-center gap-2">
+          <i class="fa-solid fa-shield-halved text-teal-400"></i>
+          How WebArchiver Studio Works
+        </h3>
+        <button onclick="closeHelpModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div class="text-xs text-slate-300 space-y-3 leading-relaxed">
+        <p>
+          <strong class="text-teal-300">1. Cross-Origin (CORS) Protection:</strong> Browsers block a page from reading another domain's response via <code class="bg-slate-800 px-1 py-0.5 rounded text-teal-300">fetch()</code>. To bypass this for research or archiving:
+        </p>
+        <ul class="list-disc pl-5 space-y-1 text-slate-400">
+          <li>We route requests through public CORS relays (AllOrigins / CorsProxy / CodeTabs) — fine for testing, not for anything sensitive.</li>
+          <li>Or run your own proxy / Cloudflare Worker (use "Custom Proxy" above).</li>
+          <li>Or package this tool inside a browser extension with host permissions.</li>
+        </ul>
+        <p>
+          <strong class="text-teal-300">2. File System Access API:</strong> On Chromium browsers, "Save to Local Folder" prompts you to pick a directory and writes the folder tree (<code class="bg-slate-800 px-1 py-0.5 rounded">/css</code>, <code class="bg-slate-800 px-1 py-0.5 rounded">/images</code>, <code class="bg-slate-800 px-1 py-0.5 rounded">/fonts</code>, <code class="bg-slate-800 px-1 py-0.5 rounded">/js</code>) directly, no backend needed.
+        </p>
+        <p>
+          <strong class="text-teal-300">3. JSZip Fallback:</strong> On Safari/Firefox (no directory picker), the whole site is bundled into a <code class="bg-slate-800 px-1 py-0.5 rounded">.zip</code>.
+        </p>
+        <p>
+          <strong class="text-teal-300">4. Fonts & background images:</strong> when "Fetch CSS, Fonts & BG Images" is on, downloaded stylesheets are scanned for <code class="bg-slate-800 px-1 py-0.5 rounded">url(...)</code> references and those files are pulled too, then the CSS is rewritten to point at the local copies.
+        </p>
+        <p>
+          <strong class="text-teal-300">5. Self-Contained File:</strong> bakes images, fonts and CSS as base64 data URIs directly into the HTML, so the single <code class="bg-slate-800 px-1 py-0.5 rounded">index.html</code> works with no supporting files at all.
+        </p>
+        <p>
+          <strong class="text-teal-300">6. Low-RAM Streaming Mode:</strong> normally every downloaded file is kept in memory until you export. On a large site that can use a lot of RAM. Streaming mode instead asks for a save folder <em>before</em> the scrape starts, then writes each file to disk the moment it finishes downloading and immediately frees it from memory — logging progress in small batches ("Flushed 6 files, 2.3 MB") — so memory use stays flat rather than growing with the site. Downloads are also throttled slightly between batches so the disk isn't hit with a flood of writes at once. Because files are cleared from memory as they go, ZIP export, Self-Contained inlining, and Sandbox Preview (which all need every file held at once) aren't available for that run — the folder on disk is the deliverable.
+        </p>
+      </div>
+
+      <div class="pt-2 flex justify-end">
+        <button onclick="closeHelpModal()" class="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl text-xs transition">
+          Got it
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------------------------------------------------------------
+    // STATE
+    // ---------------------------------------------------------------
+    const state = {
+      targetUrl: '',
+      baseUrl: '',
+      rawHtml: '',
+      rewrittenHtml: '',
+      assets: [],              // [{id, originalUrl, relativePath, type, refs:[{el, attr}], status, blob, size, writtenToDisk}]
+      assetsByUrl: new Map(),  // absoluteUrl -> asset (dedupe)
+      parsedDoc: null,
+      isProcessing: false,
+      totalBytes: 0,
+      assetCounter: 0,
+      lowRamMode: false,
+      saveDirHandle: null,
+      bytesFlushedSinceLog: 0,
+      filesFlushedSinceLog: 0,
+      fsApiSupported: false,
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      state.fsApiSupported = 'showDirectoryPicker' in window;
+      const fsBadge = document.getElementById('fsApiStatus');
+      const fsBtn = document.getElementById('saveFsBtn');
+
+      if (state.fsApiSupported) {
+        fsBadge.textContent = 'Supported';
+        fsBadge.className = 'text-emerald-400 font-semibold';
+      } else {
+        fsBadge.textContent = 'Not Supported (ZIP Fallback)';
+        fsBadge.className = 'text-amber-400 font-semibold';
+        fsBtn.classList.add('opacity-50', 'pointer-events-none');
+        fsBtn.title = 'File System Access API is not supported in this browser. Use ZIP download instead.';
+
+        document.getElementById('optLowRam').disabled = true;
+        document.getElementById('optLowRam').closest('label').classList.add('opacity-40', 'pointer-events-none');
+        document.getElementById('lowRamUnsupportedNote').classList.remove('hidden');
+      }
+    });
+
+    function setSample(url) { document.getElementById('targetUrlInput').value = url; }
+    function toggleProxyInfo() { showHelpModal(); }
+    function showHelpModal() { document.getElementById('helpModal').classList.remove('hidden'); }
+    function closeHelpModal() { document.getElementById('helpModal').classList.add('hidden'); }
+
+    function onProxySelectChange() {
+      const select = document.getElementById('proxySelect');
+      const customInput = document.getElementById('customProxyInput');
+      customInput.classList.toggle('hidden', select.value !== 'custom');
+    }
+
+    // ---------------------------------------------------------------
+    // LOW-RAM MODE UI WIRING
+    // ---------------------------------------------------------------
+    function onLowRamToggle() {
+      const checked = document.getElementById('optLowRam').checked;
+      state.lowRamMode = checked;
+      document.getElementById('lowRamFolderRow').classList.toggle('hidden', !checked);
+
+      const inlineCheckbox = document.getElementById('optInline');
+      const inlineLabel = document.getElementById('optInlineLabel');
+      if (checked) {
+        inlineCheckbox.checked = false;
+        inlineCheckbox.disabled = true;
+        inlineLabel.classList.add('opacity-40', 'pointer-events-none');
+      } else {
+        inlineCheckbox.disabled = false;
+        inlineLabel.classList.remove('opacity-40', 'pointer-events-none');
+        state.saveDirHandle = null;
+      }
+    }
+
+    function onInlineToggle() {
+      // Self-contained mode needs every blob in memory — mutually exclusive with streaming.
+      if (document.getElementById('optInline').checked && state.lowRamMode) {
+        document.getElementById('optInline').checked = false;
+      }
+    }
+
+    async function pickStreamingFolder() {
+      if (!state.fsApiSupported) return;
+      try {
+        state.saveDirHandle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
+        document.getElementById('streamingFolderLabel').textContent = `✓ Saving to "${state.saveDirHandle.name}"`;
+        log(`Streaming folder selected: "${state.saveDirHandle.name}". Ready to start.`, 'success');
+      } catch (err) {
+        if (err.name !== 'AbortError') log(`Folder selection failed: ${err.message}`, 'error');
+      }
+    }
+
+    function log(message, type = 'info') {
+      const consoleEl = document.getElementById('logConsole');
+      const row = document.createElement('div');
+      const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      let colorClass = 'text-slate-400';
+      if (type === 'success') colorClass = 'text-emerald-400';
+      if (type === 'warn') colorClass = 'text-amber-400';
+      if (type === 'error') colorClass = 'text-rose-400';
+      if (type === 'accent') colorClass = 'text-teal-400 font-medium';
+      row.className = `${colorClass} leading-tight`;
+      row.innerHTML = `<span class="text-slate-600">[${time}]</span> ${escapeHtml(message)}`;
+      consoleEl.appendChild(row);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function clearLogs() { document.getElementById('logConsole').innerHTML = ''; }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function formatProxyUrl(rawUrl) {
+      const strategy = document.getElementById('proxySelect').value;
+      if (strategy === 'direct') return rawUrl;
+      if (strategy === 'allorigins') return `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
+      if (strategy === 'corsproxy') return `https://corsproxy.io/?${encodeURIComponent(rawUrl)}`;
+      if (strategy === 'codetabs') return `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(rawUrl)}`;
+      if (strategy === 'custom') {
+        const base = document.getElementById('customProxyInput').value.trim();
+        if (!base) throw new Error('Custom proxy selected but no proxy URL was entered.');
+        return `${base}${encodeURIComponent(rawUrl)}`;
+      }
+      return `https://api.allorigins.win/raw?url=${encodeURIComponent(rawUrl)}`;
+    }
+
+    // ---------------------------------------------------------------
+    // MAIN PIPELINE
+    // ---------------------------------------------------------------
+    async function startScrapeProcess() {
+      if (state.isProcessing) return;
+
+      const inputUrl = document.getElementById('targetUrlInput').value.trim();
+      if (!inputUrl) { log('Please provide a valid URL.', 'error'); return; }
+
+      let parsedInput;
+      try {
+        parsedInput = new URL(inputUrl);
+        if (!/^https?:$/.test(parsedInput.protocol)) throw new Error('URL must start with http:// or https://');
+      } catch (e) {
+        log(`Malformed URL: ${e.message}`, 'error');
+        return;
+      }
+
+      if (state.lowRamMode && !state.saveDirHandle) {
+        log('Low-RAM Streaming Mode is on — choose a save folder before starting.', 'error');
+        return;
+      }
+
+      // Reset state fully — previous run's assets/preview must not leak into the new one
+      state.isProcessing = true;
+      state.targetUrl = inputUrl;
+      state.baseUrl = parsedInput.origin;
+      state.assets = [];
+      state.assetsByUrl = new Map();
+      state.totalBytes = 0;
+      state.assetCounter = 0;
+      state.bytesFlushedSinceLog = 0;
+      state.filesFlushedSinceLog = 0;
+      state.rewrittenHtml = '';
+      document.getElementById('copyHtmlBtn').classList.add('hidden');
+      document.getElementById('sourceCodeViewer').value = '';
+      document.getElementById('previewIframe').srcdoc = '';
+      document.getElementById('previewUnavailableNotice').classList.add('hidden');
+      document.getElementById('previewFrameWrap').classList.remove('hidden');
+      document.getElementById('exportCard').classList.add('export-disabled');
+      document.getElementById('readyCountBadge').textContent = 'Run a scrape first';
+      document.getElementById('lowRamExportNote').classList.add('hidden');
+      document.getElementById('zipExportBtn').classList.remove('opacity-40', 'pointer-events-none');
+
+      updateMetricUI('Fetching HTML...', 0, '0%', '0 KB');
+      log(`Starting archival process for: ${inputUrl}`, 'accent');
+      if (state.lowRamMode) log(`Low-RAM Streaming Mode active — files stream to "${state.saveDirHandle.name}" as they download.`, 'accent');
+
+      const scrapeBtn = document.getElementById('scrapeBtn');
+      scrapeBtn.disabled = true;
+      scrapeBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Downloading Page...`;
+
+      try {
+        const proxyUrl = formatProxyUrl(inputUrl);
+        log(`Connecting via proxy relay...`);
+
+        const response = await fetchWithRetry(proxyUrl, 3);
+        if (!response.ok) throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+
+        const htmlText = await response.text();
+        state.rawHtml = htmlText;
+        state.totalBytes += htmlText.length;
+        log(`HTML fetched successfully (${formatBytes(htmlText.length)})`, 'success');
+
+        log('Analyzing DOM elements, stylesheets, images, and scripts...');
+        parseAndExtractAssets(htmlText, inputUrl);
+
+        await downloadAllAssets(state.assets.filter(a => a.status === 'queued'), 'Downloading assets...');
+
+        if (document.getElementById('optStyles').checked) {
+          await extractAndDownloadCssDependencies();
+        }
+
+        await finalizeRewrittenHtml();
+
+        if (state.lowRamMode) {
+          await finalizeStreamingSave();
+        } else {
+          renderSandboxPreview();
+        }
+
+        log('All tasks finished!', 'success');
+        updateMetricUI('Ready', state.assets.length, '100%', formatBytes(state.totalBytes));
+
+        document.getElementById('exportCard').classList.remove('export-disabled');
+
+        if (state.lowRamMode) {
+          document.getElementById('readyCountBadge').textContent = `${state.assets.length} Assets Streamed`;
+          document.getElementById('saveFsBtn').classList.add('opacity-40', 'pointer-events-none');
+          document.getElementById('zipExportBtn').classList.add('opacity-40', 'pointer-events-none');
+          document.getElementById('lowRamExportNote').classList.remove('hidden');
+          document.getElementById('previewUnavailableNotice').classList.remove('hidden');
+          document.getElementById('previewFrameWrap').classList.add('hidden');
+        } else {
+          document.getElementById('readyCountBadge').textContent = `${state.assets.length} Assets Ready`;
+        }
+      } catch (err) {
+        log(`Scraping failed: ${err.message}`, 'error');
+        updateMetricUI('Failed', 0, '0%', '0 KB');
+      } finally {
+        state.isProcessing = false;
+        scrapeBtn.disabled = false;
+        scrapeBtn.innerHTML = `<i class="fa-solid fa-bolt"></i> Fetch & Analyze Website`;
+      }
+    }
+
+    async function fetchWithRetry(url, maxRetries = 2) {
+      let delay = 1000;
+      let lastErr;
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) return res;
+          lastErr = new Error(`HTTP ${res.status}`);
+        } catch (err) {
+          lastErr = err;
+        }
+        if (i < maxRetries - 1) {
+          await new Promise((r) => setTimeout(r, delay));
+          delay *= 2;
+        }
+      }
+      throw lastErr || new Error('Fetch failed');
+    }
+
+    // ---------------------------------------------------------------
+    // PARSE & DEDUPE
+    // ---------------------------------------------------------------
+    function createSafeLocalPath(origUrl, type, index) {
+      try {
+        const parsed = new URL(origUrl);
+        const pathname = parsed.pathname;
+        let filename = pathname.substring(pathname.lastIndexOf('/') + 1).split('?')[0];
+        if (!filename || filename.length > 50) filename = `asset_${index}`;
+        filename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+        if (type === 'image') {
+          if (!filename.match(/\.(jpg|jpeg|png|gif|webp|svg|ico|bmp|avif)$/i)) filename += '.png';
+          return `images/${filename}`;
+        }
+        if (type === 'stylesheet') {
+          if (!filename.endsWith('.css')) filename += '.css';
+          return `css/${filename}`;
+        }
+        if (type === 'script') {
+          if (!filename.endsWith('.js')) filename += '.js';
+          return `js/${filename}`;
+        }
+        if (type === 'font') {
+          if (!filename.match(/\.(woff2?|ttf|otf|eot)$/i)) filename += '.woff2';
+          return `fonts/${filename}`;
+        }
+        return `assets/${filename}`;
+      } catch {
+        return `assets/asset_${index}`;
+      }
+    }
+
+    function guessCssRefType(url) {
+      if (/\.(woff2?|ttf|otf|eot)(\?|#|$)/i.test(url)) return 'font';
+      return 'image';
+    }
+
+    function registerAsset(absUrl, type, el, attr) {
+      let asset = state.assetsByUrl.get(absUrl);
+      if (!asset) {
+        state.assetCounter++;
+        asset = {
+          id: 'asset_' + state.assetCounter,
+          originalUrl: absUrl,
+          relativePath: createSafeLocalPath(absUrl, type, state.assetCounter),
+          type,
+          refs: [],
+          status: 'queued',
+          blob: null,
+          size: 0,
+          writtenToDisk: false,
+        };
+        state.assetsByUrl.set(absUrl, asset);
+        state.assets.push(asset);
+      }
+      if (el && attr) asset.refs.push({ el, attr });
+      return asset;
+    }
+
+    function parseAndExtractAssets(htmlString, pageUrl) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlString, 'text/html');
+
+      const optImages = document.getElementById('optImages').checked;
+      const optStyles = document.getElementById('optStyles').checked;
+      const optScripts = document.getElementById('optScripts').checked;
+
+      doc.querySelectorAll('base').forEach(b => b.remove());
+
+      if (optStyles) {
+        doc.querySelectorAll('link[rel="stylesheet"], link[rel="preload"][as="style"]').forEach(link => {
+          const href = link.getAttribute('href');
+          if (href && !href.startsWith('data:')) {
+            try {
+              const absolute = new URL(href, pageUrl).href;
+              registerAsset(absolute, 'stylesheet', link, 'href');
+            } catch { /* skip malformed */ }
+          }
+        });
+      }
+
+      if (optImages) {
+        doc.querySelectorAll('img[src]').forEach(img => {
+          const src = img.getAttribute('src');
+          if (src && !src.startsWith('data:')) {
+            try {
+              const absolute = new URL(src, pageUrl).href;
+              registerAsset(absolute, 'image', img, 'src');
+            } catch { /* skip malformed */ }
+          }
+        });
+        const skippedSrcset = doc.querySelectorAll('source[srcset], img[srcset]').length;
+        if (skippedSrcset > 0) {
+          log(`Skipped ${skippedSrcset} srcset-based responsive image source(s) — only base <img src> is localized.`, 'warn');
+        }
+      }
+
+      if (optScripts) {
+        doc.querySelectorAll('script[src]').forEach(script => {
+          const src = script.getAttribute('src');
+          if (src && !src.startsWith('data:')) {
+            try {
+              const absolute = new URL(src, pageUrl).href;
+              registerAsset(absolute, 'script', script, 'src');
+            } catch { /* skip malformed */ }
+          }
+        });
+      }
+
+      state.parsedDoc = doc;
+      renderAssetList();
+      log(`Discovered ${state.assets.length} unique external assets to fetch.`, 'info');
+    }
+
+    function renderAssetList() {
+      const container = document.getElementById('assetListContainer');
+      const badge = document.getElementById('tabCountBadge');
+      badge.textContent = state.assets.length;
+
+      if (state.assets.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 text-slate-600">
+            <i class="fa-solid fa-box-open text-3xl mb-2 block"></i>
+            No assets discovered.
+          </div>`;
+        return;
+      }
+
+      let html = '';
+      state.assets.forEach(asset => {
+        let icon = 'fa-file';
+        let badgeColor = 'bg-slate-800 text-slate-400';
+        if (asset.type === 'image') { icon = 'fa-image'; badgeColor = 'bg-purple-500/20 text-purple-300'; }
+        if (asset.type === 'stylesheet') { icon = 'fa-css3-alt'; badgeColor = 'bg-blue-500/20 text-blue-300'; }
+        if (asset.type === 'script') { icon = 'fa-js'; badgeColor = 'bg-amber-500/20 text-amber-300'; }
+        if (asset.type === 'font') { icon = 'fa-font'; badgeColor = 'bg-pink-500/20 text-pink-300'; }
+
+        let statusDot = 'bg-amber-400';
+        if (asset.status === 'downloaded') statusDot = 'bg-emerald-400';
+        if (asset.status === 'failed') statusDot = 'bg-rose-400';
+
+        const usageNote = asset.refs.length > 1 ? ` <span class="text-slate-600">×${asset.refs.length}</span>` : '';
+        const streamedNote = asset.writtenToDisk ? ` <i class="fa-solid fa-check text-emerald-500" title="Streamed to disk"></i>` : '';
+
+        html += `
+          <div class="p-2.5 flex items-center justify-between text-xs hover:bg-slate-900/60 transition gap-2" id="row-${asset.id}">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="js-status-dot w-2 h-2 rounded-full ${statusDot} shrink-0"></span>
+              <span class="p-1.5 rounded-lg ${badgeColor} text-xs shrink-0"><i class="fa-solid ${icon}"></i></span>
+              <div class="min-w-0">
+                <div class="text-slate-200 font-mono text-[11px] truncate" title="${asset.relativePath}">${asset.relativePath}${usageNote}${streamedNote}</div>
+                <div class="text-[10px] text-slate-500 truncate" title="${asset.originalUrl}">${asset.originalUrl}</div>
+              </div>
+            </div>
+            <div class="text-right shrink-0">
+              <span class="js-size-label text-[11px] font-mono text-slate-400">${asset.size ? formatBytes(asset.size) : '--'}</span>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // ---------------------------------------------------------------
+    // DOWNLOAD QUEUE — with optional streaming write + memory release
+    // ---------------------------------------------------------------
+    async function downloadAllAssets(list, statusLabel) {
+      const concurrency = 4;
+      let completed = 0;
+
+      for (let i = 0; i < list.length; i += concurrency) {
+        const batch = list.slice(i, i + concurrency);
+        await Promise.all(batch.map(async (asset) => {
+          try {
+            const proxyTarget = formatProxyUrl(asset.originalUrl);
+            const res = await fetchWithRetry(proxyTarget, 2);
+            const blob = await res.blob();
+            asset.blob = blob;
+            asset.size = blob.size;
+            asset.status = 'downloaded';
+            state.totalBytes += blob.size;
+            log(`[OK] Fetched ${asset.relativePath} (${formatBytes(blob.size)})`);
+
+            // Stream binary assets (image/script/font) straight to disk and free memory.
+            // Stylesheets are held a little longer so their url() refs can be rewritten first.
+            if (state.lowRamMode && asset.type !== 'stylesheet') {
+              await streamAssetToDiskAndFree(asset);
+            }
+          } catch (err) {
+            asset.status = 'failed';
+            log(`[Fail] Could not fetch ${asset.originalUrl} — ${err.message}`, 'warn');
+          } finally {
+            completed++;
+            const pct = Math.round((completed / list.length) * 100);
+            updateMetricUI(statusLabel, state.assets.length, `${pct}%`, formatBytes(state.totalBytes));
+            updateAssetRowUI(asset);
+          }
+        }));
+
+        // Small pause between batches in streaming mode so disk writes don't pile up.
+        if (state.lowRamMode) await new Promise(r => setTimeout(r, 60));
+      }
+      renderAssetList();
+    }
+
+    async function writeAssetToDisk(asset) {
+      const parts = asset.relativePath.split('/');
+      const fileName = parts.pop();
+      let dirHandle = state.saveDirHandle;
+      for (const seg of parts) {
+        dirHandle = await dirHandle.getDirectoryHandle(seg, { create: true });
+      }
+      const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(asset.blob);
+      await writable.close();
+    }
+
+    async function streamAssetToDiskAndFree(asset) {
+      try {
+        await writeAssetToDisk(asset);
+        asset.writtenToDisk = true;
+        state.bytesFlushedSinceLog += asset.size;
+        state.filesFlushedSinceLog++;
+        asset.blob = null; // release memory immediately after the write is committed
+
+        if (state.bytesFlushedSinceLog >= 2 * 1024 * 1024 || state.filesFlushedSinceLog >= 8) {
+          log(`Flushed ${state.filesFlushedSinceLog} file(s), ${formatBytes(state.bytesFlushedSinceLog)} written to disk — memory freed.`, 'accent');
+          state.bytesFlushedSinceLog = 0;
+          state.filesFlushedSinceLog = 0;
+        }
+      } catch (err) {
+        log(`Disk write failed for ${asset.relativePath}: ${err.message}`, 'error');
+      }
+    }
+
+    function updateAssetRowUI(asset) {
+      const row = document.getElementById(`row-${asset.id}`);
+      if (!row) return;
+      const dot = row.querySelector('.js-status-dot');
+      if (dot) dot.className = `js-status-dot w-2 h-2 rounded-full shrink-0 ${asset.status === 'downloaded' ? 'bg-emerald-400' : 'bg-rose-400'}`;
+      const sizeLabel = row.querySelector('.js-size-label');
+      if (sizeLabel) sizeLabel.textContent = asset.size ? formatBytes(asset.size) : '--';
+    }
+
+    // ---------------------------------------------------------------
+    // CSS DEPENDENCY EXTRACTION (fonts, background images inside url())
+    // ---------------------------------------------------------------
+    async function extractAndDownloadCssDependencies() {
+      const stylesheets = state.assets.filter(a => a.type === 'stylesheet' && a.status === 'downloaded' && a.blob);
+      if (stylesheets.length === 0) return;
+
+      log(`Scanning ${stylesheets.length} stylesheet(s) for fonts & background images...`, 'accent');
+
+      const urlRegex = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
+      const perSheetMatches = [];
+      const newDeps = [];
+
+      for (const sheet of stylesheets) {
+        const cssText = await sheet.blob.text();
+        const matches = [];
+        let m;
+        urlRegex.lastIndex = 0;
+        while ((m = urlRegex.exec(cssText)) !== null) {
+          const raw = m[2];
+          if (!raw || raw.startsWith('data:') || raw.startsWith('#')) continue;
+          let absolute;
+          try { absolute = new URL(raw, sheet.originalUrl).href; } catch { continue; }
+          const depType = guessCssRefType(absolute);
+          const dep = registerAsset(absolute, depType, null, null);
+          if (dep.status === 'queued' && !newDeps.includes(dep)) newDeps.push(dep);
+          matches.push({ full: m[0], raw, dep });
+        }
+        if (matches.length > 0) perSheetMatches.push({ asset: sheet, cssText, matches });
+      }
+
+      if (newDeps.length > 0) {
+        log(`Found ${newDeps.length} font/background asset(s) referenced in CSS. Fetching...`, 'accent');
+        // These stream+free immediately (they're not stylesheets) inside downloadAllAssets.
+        await downloadAllAssets(newDeps, 'Fetching CSS dependencies...');
+      }
+
+      // Rewrite each stylesheet's text to point at local relative paths
+      for (const { asset, cssText, matches } of perSheetMatches) {
+        let rewritten = cssText;
+        for (const { full, dep } of matches) {
+          if (dep.status !== 'downloaded') continue;
+          const relFromCss = `../${dep.relativePath}`;
+          rewritten = rewritten.split(full).join(`url("${relFromCss}")`);
+        }
+        asset.blob = new Blob([rewritten], { type: 'text/css' });
+        asset.size = asset.blob.size;
+
+        // Now that rewriting is done, stream this stylesheet to disk too and free it.
+        if (state.lowRamMode) {
+          await streamAssetToDiskAndFree(asset);
+        }
+      }
+
+      updateMetricUI('Downloading assets...', state.assets.length, '100%', formatBytes(state.totalBytes));
+      renderAssetList();
+    }
+
+    // ---------------------------------------------------------------
+    // FINALIZE (rewrite HTML, optionally inline everything)
+    // ---------------------------------------------------------------
+    function blobToDataURL(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function buildInlineCss(cssText) {
+      const urlRegex = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
+      let result = cssText;
+      let m;
+      const replacements = [];
+      urlRegex.lastIndex = 0;
+      while ((m = urlRegex.exec(cssText)) !== null) {
+        const raw = m[2];
+        if (!raw || raw.startsWith('data:') || raw.startsWith('#')) continue;
+        replacements.push({ full: m[0], raw });
+      }
+      for (const { full, raw } of replacements) {
+        const cleanPath = raw.replace(/^\.\.\//, '');
+        const dep = state.assets.find(a => a.relativePath === cleanPath);
+        if (dep && dep.blob) {
+          try {
+            const dataUrl = await blobToDataURL(dep.blob);
+            result = result.split(full).join(`url("${dataUrl}")`);
+          } catch { /* leave as relative path */ }
+        }
+      }
+      return result;
+    }
+
+    async function finalizeRewrittenHtml() {
+      const doc = state.parsedDoc;
+      const isInlineOnly = document.getElementById('optInline').checked && !state.lowRamMode;
+
+      // 1. Standard relative-path rewrite for every downloaded asset ref — works from
+      //    relativePath alone, no blob needed, so this is unaffected by streaming mode.
+      for (const asset of state.assets) {
+        if (asset.status !== 'downloaded') continue;
+        for (const ref of asset.refs) {
+          ref.el.setAttribute(ref.attr, `./${asset.relativePath}`);
+        }
+      }
+
+      // 2. Self-contained mode: bake images as data URIs, stylesheets as inline <style>
+      if (isInlineOnly) {
+        for (const asset of state.assets) {
+          if (asset.status !== 'downloaded' || !asset.blob) continue;
+
+          if (asset.type === 'image' && asset.refs.length > 0) {
+            try {
+              const dataUrl = await blobToDataURL(asset.blob);
+              for (const ref of asset.refs) ref.el.setAttribute(ref.attr, dataUrl);
+            } catch { /* keep relative path fallback already set */ }
+          }
+
+          if (asset.type === 'stylesheet' && asset.refs.length > 0) {
+            try {
+              const cssText = await asset.blob.text();
+              const inlineCss = await buildInlineCss(cssText);
+              for (const ref of asset.refs) {
+                const styleEl = doc.createElement('style');
+                styleEl.textContent = inlineCss;
+                ref.el.replaceWith(styleEl);
+              }
+            } catch { /* keep relative <link> fallback already set */ }
+          }
+        }
+      }
+
+      const metaComment = doc.createComment(` Archived with WebArchiver Studio on ${new Date().toISOString()} from ${state.targetUrl}${state.lowRamMode ? ' (Low-RAM Streaming Mode)' : ''} `);
+      doc.documentElement.prepend(metaComment);
+
+      state.rewrittenHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      document.getElementById('sourceCodeViewer').value = state.rewrittenHtml;
+      document.getElementById('copyHtmlBtn').classList.remove('hidden');
+    }
+
+    async function finalizeStreamingSave() {
+      try {
+        const fileHandle = await state.saveDirHandle.getFileHandle('index.html', { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(state.rewrittenHtml);
+        await writable.close();
+        log('✓ index.html written to save folder — archive streaming complete.', 'success');
+      } catch (err) {
+        log(`Failed to write index.html to save folder: ${err.message}`, 'error');
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // SANDBOX PREVIEW (normal mode only — needs blobs in memory)
+    // ---------------------------------------------------------------
+    function renderSandboxPreview() {
+      const iframe = document.getElementById('previewIframe');
+      const previewDoc = state.parsedDoc.cloneNode(true);
+
+      for (const asset of state.assets) {
+        if (asset.status !== 'downloaded' || !asset.blob) continue;
+        const objectUrl = URL.createObjectURL(asset.blob);
+        for (const ref of asset.refs) {
+          const matches = previewDoc.querySelectorAll(`[${ref.attr}]`);
+          matches.forEach(el => {
+            const val = el.getAttribute(ref.attr);
+            if (val === `./${asset.relativePath}` || val === objectUrl) {
+              el.setAttribute(ref.attr, objectUrl);
+            }
+          });
+        }
+      }
+
+      iframe.srcdoc = '<!DOCTYPE html>\n' + previewDoc.documentElement.outerHTML;
+    }
+
+    function refreshPreview() {
+      if (state.lowRamMode) {
+        log('Preview is unavailable for Low-RAM Streaming runs — assets were already cleared from memory.', 'warn');
+        return;
+      }
+      renderSandboxPreview();
+    }
+
+    // ---------------------------------------------------------------
+    // EXPORT: FILE SYSTEM ACCESS API (normal mode)
+    // ---------------------------------------------------------------
+    async function saveToFileSystem() {
+      if (!('showDirectoryPicker' in window)) {
+        log('File System Access API not supported in this browser. Falling back to ZIP export...', 'warn');
+        exportAsZip();
+        return;
+      }
+      if (!state.rewrittenHtml) { log('No parsed website available to save. Please run the scraper first.', 'warn'); return; }
+
+      try {
+        log('Requesting folder permission from user...', 'accent');
+        const rootHandle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
+        log(`Target folder selected: "${rootHandle.name}". Writing files...`);
+
+        const indexFileHandle = await rootHandle.getFileHandle('index.html', { create: true });
+        const indexWritable = await indexFileHandle.createWritable();
+        await indexWritable.write(state.rewrittenHtml);
+        await indexWritable.close();
+        log('✓ Created index.html');
+
+        const dirCache = {};
+        let written = 0;
+
+        for (const asset of state.assets) {
+          if (asset.status !== 'downloaded' || !asset.blob) continue;
+
+          const parts = asset.relativePath.split('/');
+          const fileName = parts.pop();
+          const subDirName = parts.join('/');
+
+          let targetDirHandle = rootHandle;
+          if (subDirName) {
+            if (!dirCache[subDirName]) {
+              let currentHandle = rootHandle;
+              for (const seg of parts) {
+                currentHandle = await currentHandle.getDirectoryHandle(seg, { create: true });
+              }
+              dirCache[subDirName] = currentHandle;
+            }
+            targetDirHandle = dirCache[subDirName];
+          }
+
+          const fileHandle = await targetDirHandle.getFileHandle(fileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(asset.blob);
+          await writable.close();
+          written++;
+        }
+
+        log(`All files written successfully (${written} assets + index.html) to your local drive!`, 'success');
+      } catch (err) {
+        if (err.name === 'AbortError') log('Folder selection cancelled by user.', 'warn');
+        else log(`File System write error: ${err.message}`, 'error');
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // EXPORT: JSZIP (normal mode — needs all blobs in memory)
+    // ---------------------------------------------------------------
+    async function exportAsZip() {
+      if (state.lowRamMode) {
+        log('ZIP export needs every file in memory at once — not available after a Low-RAM Streaming run. Your files are already saved in the chosen folder.', 'warn');
+        return;
+      }
+      if (!state.rewrittenHtml) { log('No parsed website available to package. Please run the scraper first.', 'warn'); return; }
+
+      try {
+        log('Compressing localized website into .ZIP archive...', 'accent');
+        const zip = new JSZip();
+        zip.file('index.html', state.rewrittenHtml);
+
+        for (const asset of state.assets) {
+          if (asset.status === 'downloaded' && asset.blob) zip.file(asset.relativePath, asset.blob);
+        }
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+          updateMetricUI('Packaging ZIP...', state.assets.length, `${Math.round(metadata.percent)}%`, formatBytes(state.totalBytes));
+        });
+
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        const hostname = new URL(state.targetUrl).hostname.replace(/[^a-z0-9]/gi, '_');
+        a.download = `archived_${hostname}_${Date.now()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        log(`ZIP Archive downloaded successfully (${formatBytes(zipBlob.size)})!`, 'success');
+        updateMetricUI('Downloaded ZIP', state.assets.length, '100%', formatBytes(zipBlob.size));
+      } catch (err) {
+        log(`ZIP generation failed: ${err.message}`, 'error');
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // SINGLE FILE DOWNLOAD + COPY
+    // ---------------------------------------------------------------
+    function downloadSingleHtml() {
+      if (!state.rewrittenHtml) { log('No HTML available. Fetch a website first.', 'warn'); return; }
+      const blob = new Blob([state.rewrittenHtml], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'index.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      log('Downloaded rewritten index.html', 'success');
+    }
+
+    async function copyRewrittenHtml() {
+      const codeEl = document.getElementById('sourceCodeViewer');
+      const code = codeEl.value;
+      if (!code) return;
+
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(code);
+        } else {
+          codeEl.focus();
+          codeEl.select();
+          document.execCommand('copy');
+        }
+        log('Rewritten HTML copied to clipboard!', 'success');
+      } catch (err) {
+        log(`Copy failed: ${err.message}. Select the text manually instead.`, 'error');
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // TABS & METRICS
+    // ---------------------------------------------------------------
+    function switchTab(tabId) {
+      ['assets', 'preview', 'source'].forEach(t => {
+        const btn = document.getElementById(`tabBtn-${t}`);
+        const content = document.getElementById(`tabContent-${t}`);
+        if (t === tabId) {
+          btn.className = 'px-3.5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-teal-400 text-teal-300 bg-slate-800/60 transition flex items-center gap-2 shrink-0';
+          content.classList.remove('hidden');
+        } else {
+          btn.className = 'px-3.5 py-2 text-xs font-medium rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition flex items-center gap-2 shrink-0';
+          content.classList.add('hidden');
+        }
+      });
+    }
+
+    function updateMetricUI(status, totalAssets, pct, size) {
+      document.getElementById('statStatus').textContent = status;
+      document.getElementById('statTotalAssets').textContent = totalAssets;
+      document.getElementById('statDownloaded').textContent = pct;
+      document.getElementById('statPayloadSize').textContent = size;
+    }
+
+    function formatBytes(bytes, decimals = 1) {
+      if (!bytes || bytes === 0) return '0 B';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+  </script>
+</body>
+</html>
