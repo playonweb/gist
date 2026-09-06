@@ -1264,7 +1264,18 @@ async function decryptPayload(ciphertext, salt, iv, password) {
           STATE.encryptedPayload.iv,
           password
         );
-        const text = decompressToString(decryptedBytes);
+        let text;
+        try {
+          text = decompressToString(decryptedBytes);
+          if (text === null) {
+            const dec = new TextDecoder();
+            text = dec.decode(decryptedBytes);
+          }
+        } catch (e) {
+          console.warn('Decompression failed, falling back to plaintext:', e);
+          const dec = new TextDecoder();
+          text = dec.decode(decryptedBytes);
+        }
 
         STATE.currentPassword = password;
         STATE.isEncrypted = true;
