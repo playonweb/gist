@@ -239,6 +239,33 @@ Disable-Footer: true
     </div>
   </header>
 
+  <!-- DEDICATED FULL-WIDTH SHAREABLE URL BAR (Always Visible) -->
+  <div id="shareable-url-banner" class="bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-100 dark:border-indigo-900/60 px-4 py-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 z-20 shrink-0 select-none">
+    <div class="flex items-center gap-2 min-w-0">
+      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-600 text-white font-semibold text-[11px] tracking-wide uppercase shadow-xs shrink-0">
+        <i class="fa-solid fa-link text-[10px]"></i> Shareable Link
+      </span>
+      <span class="text-xs text-slate-500 dark:text-slate-400 hidden lg:inline">Real-time Zero-Backend URL:</span>
+      <!-- Direct Readonly URL Display Input -->
+      <div class="relative flex-1 min-w-0 max-w-2xl flex items-center">
+        <input type="text" id="banner-share-url-input" readonly value="Generating shareable link..." class="w-full pl-7 pr-3 py-1 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800/80 rounded-lg text-xs font-mono text-indigo-950 dark:text-indigo-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 select-all cursor-pointer shadow-xs" title="Click or select to copy shareable URL" />
+        <i class="fa-solid fa-earth-americas absolute left-2.5 text-[11px] text-indigo-400 dark:text-indigo-500 pointer-events-none"></i>
+      </div>
+    </div>
+
+    <!-- Quick Action Buttons -->
+    <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
+      <button id="banner-btn-copy-url" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-medium text-xs rounded-lg shadow-xs flex items-center gap-1.5 transition-all" title="Copy Shareable Link to clipboard">
+        <i class="fa-solid fa-copy"></i>
+        <span>Copy Link</span>
+      </button>
+      <button id="banner-btn-options" class="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-medium text-xs rounded-lg shadow-xs flex items-center gap-1.5 transition-all" title="Password & Sharing options">
+        <i class="fa-solid fa-lock text-indigo-500"></i>
+        <span class="hidden sm:inline">Protect / Options</span>
+      </button>
+    </div>
+  </div>
+
   <!-- MAIN WORKSPACE CONTAINER -->
   <main id="main-app-container" class="flex-1 flex flex-col md:flex-row relative min-h-0 overflow-hidden">
     
@@ -508,6 +535,9 @@ Disable-Footer: true
       lockBadge: document.getElementById('lock-badge'),
       btnQuickCopyUrl: document.getElementById('btn-quick-copy-url'),
       headerShareUrlText: document.getElementById('header-share-url-text'),
+      bannerShareUrlInput: document.getElementById('banner-share-url-input'),
+      bannerBtnCopyUrl: document.getElementById('banner-btn-copy-url'),
+      bannerBtnOptions: document.getElementById('banner-btn-options'),
       fileUploadInput: document.getElementById('file-upload-input'),
       btnUpload: document.getElementById('btn-upload'),
       btnDownload: document.getElementById('btn-download'),
@@ -1056,45 +1086,61 @@ async function decryptPayload(ciphertext, salt, iv, password) {
 
     // --- URL Generation & Syncing ---
     async function generateCurrentShareUrl(isProtected = false, password = '') {
-      const markdown = DOM.markdownInput.value;
+      const markdown = DOM.markdownInput.value || '';
+      const base = window.location.origin + window.location.pathname;
+
       if (!markdown.trim()) {
-        return window.location.origin + window.location.pathname;
+        return `${base}#raw=`;
       }
 
       if (isProtected && password) {
         if (STATE.brotli) {
-          const compressedBytes = compressString(markdown);
-          const { salt, iv, ciphertext } = await encryptBytes(compressedBytes, password);
-          return `${window.location.origin}${window.location.pathname}#code=enc.${salt}.${iv}.${ciphertext}`;
-        } else {
-          const enc = new TextEncoder();
-          const { salt, iv, ciphertext } = await encryptBytes(enc.encode(markdown), password);
-          return `${window.location.origin}${window.location.pathname}#code=enc.${salt}.${iv}.${ciphertext}`;
+          try {
+            const compressedBytes = compressString(markdown);
+            if (compressedBytes) {
+              const { salt, iv, ciphertext } = await encryptBytes(compressedBytes, password);
+              return `${base}#code=enc.${salt}.${iv}.${ciphertext}`;
+            }
+          } catch (e) {
+            console.warn('Brotli encryption failed, falling back to plaintext AES-GCM:', e);
+          }
         }
+        const enc = new TextEncoder();
+        const { salt, iv, ciphertext } = await encryptBytes(enc.encode(markdown), password);
+        return `${base}#code=enc.${salt}.${iv}.${ciphertext}`;
       } else {
         if (STATE.brotli) {
-          const compressed = compressString(markdown);
-          const b64 = bytesToBase64Url(compressed);
-          return `${window.location.origin}${window.location.pathname}#code=${b64}`;
-        } else {
-          // Uncompressed fallback if brotli is still loading
-          const enc = new TextEncoder();
-          const b64 = bytesToBase64Url(enc.encode(markdown));
-          return `${window.location.origin}${window.location.pathname}#raw=${b64}`;
+          try {
+            const compressed = compressString(markdown);
+            if (compressed) {
+              const b64 = bytesToBase64Url(compressed);
+              return `${base}#code=${b64}`;
+            }
+          } catch (e) {
+            console.warn('Brotli compression failed, falling back to raw Base64URL:', e);
+          }
         }
+        // Uncompressed fallback (or if Brotli isn't ready / empty)
+        const enc = new TextEncoder();
+        const b64 = bytesToBase64Url(enc.encode(markdown));
+        return `${base}#raw=${b64}`;
       }
     }
 
     async function updateUrlHash() {
-      const markdown = DOM.markdownInput.value;
+      const markdown = DOM.markdownInput.value || '';
       if (!markdown.trim()) {
-        history.replaceState(null, '', window.location.pathname);
+        const emptyUrl = `${window.location.origin}${window.location.pathname}#raw=`;
+        history.replaceState(null, '', '#raw=');
         updateStatusDisplay('Empty Document', 'slate');
+        if (DOM.bannerShareUrlInput) {
+          DOM.bannerShareUrlInput.value = emptyUrl;
+        }
         if (DOM.headerShareUrlText) {
-          DOM.headerShareUrlText.textContent = 'Empty Document';
+          DOM.headerShareUrlText.textContent = emptyUrl;
         }
         if (DOM.shareUrlOutput) {
-          DOM.shareUrlOutput.value = window.location.href;
+          DOM.shareUrlOutput.value = emptyUrl;
         }
         return;
       }
@@ -1105,16 +1151,19 @@ async function decryptPayload(ciphertext, salt, iv, password) {
         const hash = hashIdx !== -1 ? shareUrl.slice(hashIdx) : '';
         history.replaceState(null, '', hash || window.location.pathname);
 
-        // Update header visible URL text
+        // Update banner and header visible URL inputs
+        if (DOM.bannerShareUrlInput) {
+          DOM.bannerShareUrlInput.value = shareUrl;
+        }
         if (DOM.headerShareUrlText) {
-          DOM.headerShareUrlText.textContent = window.location.href;
+          DOM.headerShareUrlText.textContent = shareUrl;
         }
 
         // Update modal URL output if present
         if (DOM.shareUrlOutput && (!DOM.toggleEncryptShare || !DOM.toggleEncryptShare.checked)) {
-          DOM.shareUrlOutput.value = window.location.href;
+          DOM.shareUrlOutput.value = shareUrl;
           if (DOM.linkSizeInfo) {
-            DOM.linkSizeInfo.textContent = `URL Length: ${window.location.href.length.toLocaleString()} chars`;
+            DOM.linkSizeInfo.textContent = `URL Length: ${shareUrl.length.toLocaleString()} chars`;
           }
         }
 
@@ -1152,52 +1201,50 @@ async function decryptPayload(ciphertext, salt, iv, password) {
 
     // --- URL Hash Loading & State Initialization ---
     async function loadFromUrlHash() {
+      // Support reading payload from both URL Hash (#code=... / #raw=...) and Query String (?code=... / ?raw=...)
+      const searchParams = new URLSearchParams(window.location.search);
       const hash = window.location.hash.slice(1);
-      if (!hash) {
-        // No hash: load sample showcase
+      const rawPayload = searchParams.get('raw') || (hash.match(/(?:^|\/|\?|&)raw=([^&]+)/) ? hash.match(/(?:^|\/|\?|&)raw=([^&]+)/)[1] : null);
+      const codePayload = searchParams.get('code') || (hash.match(/(?:^|\/|\?|&)code=([^&]+)/) ? hash.match(/(?:^|\/|\?|&)code=([^&]+)/)[1] : null);
+
+      if (!rawPayload && !codePayload) {
+        // No payload in URL: load sample showcase
         DOM.markdownInput.value = SAMPLE_MARKDOWN;
         updateEditorStats();
         triggerRender();
-        scheduleUrlUpdate();
+        await updateUrlHash();
         return;
       }
 
-      if (!STATE.brotli) {
-        showToast('Compression engine unavailable — cannot decode shared link.', 'error');
-        DOM.markdownInput.value = SAMPLE_MARKDOWN;
-        updateEditorStats();
-        triggerRender();
-        return;
-      }
-
-      // Check format: #code=... or #raw=...
-      const rawMatch = hash.match(/(?:^|\/)?raw=([^&]+)/);
-      if (rawMatch) {
+      // Check raw uncompressed payload first
+      if (rawPayload !== null) {
         try {
-          const rawBytes = base64UrlToBytes(rawMatch[1]);
-          const text = new TextDecoder().decode(rawBytes);
-          DOM.markdownInput.value = text;
+          if (rawPayload === '') {
+            DOM.markdownInput.value = '';
+          } else {
+            const rawBytes = base64UrlToBytes(rawPayload);
+            const text = new TextDecoder().decode(rawBytes);
+            DOM.markdownInput.value = text;
+          }
           STATE.isEncrypted = false;
           STATE.currentPassword = '';
           updateEditorStats();
           triggerRender();
           updateStatusDisplay('Loaded from URL', 'emerald', false);
-          if (DOM.headerShareUrlText) DOM.headerShareUrlText.textContent = window.location.href;
           return;
         } catch (rawErr) {
           console.error('Error decoding raw payload:', rawErr);
         }
       }
 
-      const match = hash.match(/(?:^|\/)?code=([^&]+)/);
-      if (!match) {
+      const payload = codePayload;
+      if (!payload) {
         DOM.markdownInput.value = SAMPLE_MARKDOWN;
         updateEditorStats();
         triggerRender();
+        await updateUrlHash();
         return;
       }
-
-      const payload = match[1];
 
       // Password-Protected payload check: enc.<salt>.<iv>.<ciphertext>
       if (payload.startsWith('enc.')) {
@@ -1316,23 +1363,53 @@ async function decryptPayload(ciphertext, salt, iv, password) {
       }
     }
 
-    // Quick Copy from Header Button
-    if (DOM.btnQuickCopyUrl) {
-      DOM.btnQuickCopyUrl.addEventListener('click', async () => {
-        const url = window.location.href;
-        try {
-          await navigator.clipboard.writeText(url);
-          showToast('Shareable URL copied to clipboard!', 'success');
-        } catch (err) {
-          // Fallback
-          const tempInput = document.createElement('input');
-          tempInput.value = url;
-          document.body.appendChild(tempInput);
-          tempInput.select();
-          document.execCommand('copy');
-          document.body.removeChild(tempInput);
-          showToast('Shareable URL copied to clipboard!', 'success');
+    // Quick Copy from Banner & Header Buttons
+    async function copyCurrentShareUrl() {
+      try {
+        const fullUrl = await generateCurrentShareUrl(STATE.isEncrypted, STATE.currentPassword);
+        // Ensure browser hash is also up to date
+        const hashIdx = fullUrl.indexOf('#');
+        if (hashIdx !== -1) {
+          history.replaceState(null, '', fullUrl.slice(hashIdx));
         }
+        if (DOM.bannerShareUrlInput) {
+          DOM.bannerShareUrlInput.value = fullUrl;
+        }
+        if (DOM.headerShareUrlText) {
+          DOM.headerShareUrlText.textContent = fullUrl;
+        }
+
+        await navigator.clipboard.writeText(fullUrl);
+        showToast('Full Shareable URL copied to clipboard!', 'success');
+      } catch (err) {
+        // Fallback
+        const fullUrl = (DOM.bannerShareUrlInput && DOM.bannerShareUrlInput.value.includes('#')) 
+          ? DOM.bannerShareUrlInput.value 
+          : window.location.href;
+        const tempInput = document.createElement('input');
+        tempInput.value = fullUrl;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        showToast('Full Shareable URL copied to clipboard!', 'success');
+      }
+    }
+
+    if (DOM.bannerBtnCopyUrl) {
+      DOM.bannerBtnCopyUrl.addEventListener('click', copyCurrentShareUrl);
+    }
+    if (DOM.btnQuickCopyUrl) {
+      DOM.btnQuickCopyUrl.addEventListener('click', copyCurrentShareUrl);
+    }
+    if (DOM.bannerShareUrlInput) {
+      DOM.bannerShareUrlInput.addEventListener('click', () => {
+        DOM.bannerShareUrlInput.select();
+      });
+    }
+    if (DOM.bannerBtnOptions) {
+      DOM.bannerBtnOptions.addEventListener('click', () => {
+        DOM.btnOpenShareModal.click();
       });
     }
 
@@ -1399,16 +1476,26 @@ async function decryptPayload(ciphertext, salt, iv, password) {
         STATE.currentPassword = '';
       }
 
-      await updateUrlHash();
-      const url = DOM.shareUrlOutput.value || window.location.href;
+      const fullUrl = await generateCurrentShareUrl(STATE.isEncrypted, STATE.currentPassword);
+      DOM.shareUrlOutput.value = fullUrl;
+      const hashIdx = fullUrl.indexOf('#');
+      if (hashIdx !== -1) {
+        history.replaceState(null, '', fullUrl.slice(hashIdx));
+      }
+      if (DOM.bannerShareUrlInput) {
+        DOM.bannerShareUrlInput.value = fullUrl;
+      }
+      if (DOM.headerShareUrlText) {
+        DOM.headerShareUrlText.textContent = fullUrl;
+      }
 
       try {
-        await navigator.clipboard.writeText(url);
-        showToast('Share link copied to clipboard!', 'success');
+        await navigator.clipboard.writeText(fullUrl);
+        showToast('Full Shareable URL copied to clipboard!', 'success');
       } catch (e) {
         DOM.shareUrlOutput.select();
         document.execCommand('copy');
-        showToast('Link copied to clipboard!', 'success');
+        showToast('Full Shareable URL copied to clipboard!', 'success');
       }
     });
 
