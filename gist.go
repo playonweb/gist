@@ -189,25 +189,30 @@ func processApp(ctx context.Context, bCtx *BuildCtx, appDir os.DirEntry) (*AppMe
 func injectBytePartials(content []byte, header, footer []byte) []byte {
 	out := content
 	if len(header) > 0 {
-		if reHeadTag.Match(out) {
-			out = reHeadTag.ReplaceAll(out, append(reHeadTag.Find(out), append([]byte("\n"), header...)...))
-		} else if reBodyTag.Match(out) {
-			out = reBodyTag.ReplaceAll(out, append(reBodyTag.Find(out), append([]byte("\n"), header...)...))
-		} else if reHtmlTag.Match(out) {
-			out = reHtmlTag.ReplaceAll(out, append(reHtmlTag.Find(out), append([]byte("\n"), header...)...))
+		if match := reHeadTag.Find(out); match != nil {
+			replacement := bytes.Join([][]byte{match, header}, []byte("\n"))
+			out = bytes.Replace(out, match, replacement, 1)
+		} else if match := reBodyTag.Find(out); match != nil {
+			replacement := bytes.Join([][]byte{match, header}, []byte("\n"))
+			out = bytes.Replace(out, match, replacement, 1)
+		} else if match := reHtmlTag.Find(out); match != nil {
+			replacement := bytes.Join([][]byte{match, header}, []byte("\n"))
+			out = bytes.Replace(out, match, replacement, 1)
 		} else {
-			out = append(header, append([]byte("\n"), out...)...)
+			out = bytes.Join([][]byte{header, out}, []byte("\n"))
 		}
 	}
 
 	if len(footer) > 0 {
 		fStr := []byte("</body>")
 		if bytes.Contains(out, fStr) {
-			out = bytes.Replace(out, fStr, append(footer, append([]byte("\n"), fStr...)...), 1)
+			replacement := bytes.Join([][]byte{footer, fStr}, []byte("\n"))
+			out = bytes.Replace(out, fStr, replacement, 1)
 		} else {
 			fStr = []byte("</html>")
 			if bytes.Contains(out, fStr) {
-				out = bytes.Replace(out, fStr, append(footer, append([]byte("\n"), fStr...)...), 1)
+				replacement := bytes.Join([][]byte{footer, fStr}, []byte("\n"))
+				out = bytes.Replace(out, fStr, replacement, 1)
 			}
 		}
 	}
