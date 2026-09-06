@@ -88,7 +88,34 @@ Disable-Footer: true
         background: white !important;
         color: black !important;
       }
-      #main-app-container, #modal-backdrop, #toast-container, header {
+      #print-mount-point pre {
+        background-color: #f6f8fa !important;
+        color: #24292e !important;
+        padding: 12px !important;
+        border-radius: 6px !important;
+        border: 1px solid #e1e4e8 !important;
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+      }
+      #print-mount-point table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 16px 0 !important;
+      }
+      #print-mount-point th, #print-mount-point td {
+        border: 1px solid #cbd5e1 !important;
+        padding: 8px 12px !important;
+      }
+      #print-mount-point th {
+        background-color: #f1f5f9 !important;
+      }
+      #print-mount-point .mermaid-controls {
+        display: none !important;
+      }
+      #print-mount-point .mermaid-viewport {
+        padding: 0 !important;
+      }
+      #main-app-container, #modal-backdrop, #share-modal-backdrop, #decrypt-modal-backdrop, #diagram-modal-backdrop, #toast-container, header {
         display: none !important;
       }
     }
@@ -129,13 +156,19 @@ Disable-Footer: true
         </div>
       </div>
 
-      <!-- Quick status indicator -->
-      <div id="url-status" class="hidden md:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 border-l border-slate-200 dark:border-slate-800 pl-3">
-        <span id="status-dot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
-        <span id="status-text">Synced to URL</span>
-        <span id="lock-badge" class="hidden ml-1 px-1.5 py-0.2 text-[10px] rounded font-medium bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
-          <i class="fa-solid fa-lock text-[9px]"></i> Encrypted
+      <!-- Prominent Shareable URL & Sync Pill -->
+      <div id="url-status" class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 border-l border-slate-200 dark:border-slate-800 pl-2.5 sm:pl-3">
+        <span id="status-dot" class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+        <span id="status-text" class="hidden sm:inline font-medium">Synced</span>
+        <span id="lock-badge" class="hidden px-1.5 py-0.2 text-[10px] rounded font-medium bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800 flex items-center gap-1 shrink-0">
+          <i class="fa-solid fa-lock text-[9px]"></i>
         </span>
+        <!-- Always-visible Shareable URL pill with 1-click copy -->
+        <button id="btn-quick-copy-url" class="group flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all text-[11px] max-w-[130px] sm:max-w-[210px] md:max-w-[280px]" title="Click to copy full Shareable URL to clipboard">
+          <i class="fa-solid fa-link text-[10px] text-indigo-500 group-hover:scale-110 transition-transform"></i>
+          <span id="header-share-url-text" class="truncate font-mono select-none">Generating URL...</span>
+          <i class="fa-solid fa-copy text-[10px] opacity-60 group-hover:opacity-100 transition-opacity ml-0.5"></i>
+        </button>
       </div>
     </div>
 
@@ -287,7 +320,7 @@ Disable-Footer: true
           <span>Rendering...</span>
         </div>
 
-        <iframe id="preview-frame" sandbox="allow-scripts allow-modals" class="w-full h-full border-0 block bg-white dark:bg-slate-950" title="Rendered Markdown Preview"></iframe>
+        <iframe id="preview-frame" sandbox="allow-scripts allow-modals allow-same-origin" class="w-full h-full border-0 block bg-white dark:bg-slate-950" title="Rendered Markdown Preview"></iframe>
       </div>
     </section>
 
@@ -473,6 +506,8 @@ Disable-Footer: true
       statusDot: document.getElementById('status-dot'),
       statusText: document.getElementById('status-text'),
       lockBadge: document.getElementById('lock-badge'),
+      btnQuickCopyUrl: document.getElementById('btn-quick-copy-url'),
+      headerShareUrlText: document.getElementById('header-share-url-text'),
       fileUploadInput: document.getElementById('file-upload-input'),
       btnUpload: document.getElementById('btn-upload'),
       btnDownload: document.getElementById('btn-download'),
@@ -832,6 +867,19 @@ async function decryptPayload(ciphertext, salt, iv, password) {
     th {
       background-color: ${isDark ? '#1e293b' : '#f1f5f9'};
     }
+    @media print {
+      body {
+        padding: 0;
+        background: #ffffff !important;
+        color: #000000 !important;
+      }
+      .mermaid-controls {
+        display: none !important;
+      }
+      .mermaid-viewport {
+        padding: 0;
+      }
+    }
   </style>
 </head>
 ` + openBody + `
@@ -853,10 +901,11 @@ async function decryptPayload(ciphertext, salt, iv, password) {
       // Configure marked with highlight.js
       const renderer = new marked.Renderer();
 
-      // Custom code block renderer to intercept mermaid
-      renderer.code = function(token) {
-        var code = token.text;
-        var lang = token.lang;
+      // Custom code block renderer to intercept mermaid (supports both token and legacy param signatures)
+      renderer.code = function(codeOrToken, infostring) {
+        var code = (typeof codeOrToken === 'object' && codeOrToken !== null) ? codeOrToken.text : codeOrToken;
+        var lang = (typeof codeOrToken === 'object' && codeOrToken !== null) ? (codeOrToken.lang || '') : (infostring || '');
+        code = typeof code === 'string' ? code : (code != null ? String(code) : '');
 
         if (lang === 'mermaid') {
           var id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
@@ -874,7 +923,12 @@ async function decryptPayload(ciphertext, salt, iv, password) {
         }
 
         var validLang = !!(lang && hljs.getLanguage(lang));
-        var highlighted = validLang ? hljs.highlight(code, { language: lang }).value : hljs.highlightAuto(code).value;
+        var highlighted = '';
+        try {
+          highlighted = validLang ? hljs.highlight(code, { language: lang }).value : hljs.highlightAuto(code).value;
+        } catch (e) {
+          highlighted = code;
+        }
         return '<pre><code class="hljs language-' + (lang || '') + '">' + highlighted + '</code></pre>';
       };
 
@@ -885,52 +939,65 @@ async function decryptPayload(ciphertext, salt, iv, password) {
         tables: true
       });
 
-      document.getElementById('content').innerHTML = marked.parse(rawMd);
+      try {
+        document.getElementById('content').innerHTML = marked.parse(rawMd);
 
-      // Render Mermaid diagrams
-      const panzoomInstances = {};
+        // Render Mermaid diagrams
+        const panzoomInstances = {};
 
-      const mermaidNodes = document.querySelectorAll('.mermaid-chart');
-      for (const node of mermaidNodes) {
-        const id = node.id;
-        const code = node.textContent;
-        try {
-          const { svg } = await mermaid.render('svg-' + id, code);
-          node.innerHTML = svg;
-          const svgEl = node.querySelector('svg');
-          if (svgEl && window.Panzoom) {
-            const pz = Panzoom(svgEl, {
-              maxScale: 5,
-              minScale: 0.3,
-              contain: 'outside'
-            });
-            panzoomInstances[id] = pz;
-            node.parentElement.addEventListener('wheel', pz.zoomWithWheel);
+        const mermaidNodes = document.querySelectorAll('.mermaid-chart');
+        for (const node of mermaidNodes) {
+          const id = node.id;
+          const code = node.textContent;
+          try {
+            const { svg } = await mermaid.render('svg-' + id, code);
+            node.innerHTML = svg;
+            const svgEl = node.querySelector('svg');
+            if (svgEl && window.Panzoom) {
+              const pz = Panzoom(svgEl, {
+                maxScale: 5,
+                minScale: 0.3,
+                contain: 'outside'
+              });
+              panzoomInstances[id] = pz;
+              node.parentElement.addEventListener('wheel', pz.zoomWithWheel);
+            }
+          } catch (err) {
+            node.innerHTML = '<div class="p-3 text-rose-500 text-xs font-mono bg-rose-50 dark:bg-rose-950/40 rounded">Mermaid Syntax Error: ' + err.message + '</div>';
           }
-        } catch (err) {
-          node.innerHTML = '<div class="p-3 text-rose-500 text-xs font-mono bg-rose-50 dark:bg-rose-950/40 rounded">Mermaid Syntax Error: ' + err.message + '</div>';
         }
+
+        // Event delegation for mermaid diagram controls
+        document.addEventListener('click', function(e) {
+          var btn = e.target.closest('[data-action]');
+          if (!btn) return;
+          var action = btn.getAttribute('data-action');
+          var targetId = btn.getAttribute('data-target');
+          if (!targetId) return;
+          var pz = panzoomInstances[targetId];
+          if (action === 'zoom-in' && pz) {
+            pz.zoomIn();
+          } else if (action === 'zoom-out' && pz) {
+            pz.zoomOut();
+          } else if (action === 'reset' && pz) {
+            pz.reset();
+          } else if (action === 'fullscreen') {
+            var svgEl = document.querySelector('#' + targetId + ' svg');
+            if (svgEl) {
+              window.parent.postMessage({ type: 'MDSHARE_VIEW_DIAGRAM', svg: svgEl.outerHTML }, '*');
+            }
+          }
+        });
+      } catch (parseErr) {
+        console.error('Markdown rendering error:', parseErr);
+        document.getElementById('content').innerHTML = '<div class="p-4 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 rounded-xl text-rose-600 dark:text-rose-400 font-mono text-xs">Render Error: ' + parseErr.message + '</div>';
       }
 
-      // Event delegation for mermaid diagram controls
-      document.addEventListener('click', function(e) {
-        var btn = e.target.closest('[data-action]');
-        if (!btn) return;
-        var action = btn.getAttribute('data-action');
-        var targetId = btn.getAttribute('data-target');
-        if (!targetId) return;
-        var pz = panzoomInstances[targetId];
-        if (action === 'zoom-in' && pz) {
-          pz.zoomIn();
-        } else if (action === 'zoom-out' && pz) {
-          pz.zoomOut();
-        } else if (action === 'reset' && pz) {
-          pz.reset();
-        } else if (action === 'fullscreen') {
-          var svgEl = document.querySelector('#' + targetId + ' svg');
-          if (svgEl) {
-            window.parent.postMessage({ type: 'MDSHARE_VIEW_DIAGRAM', svg: svgEl.outerHTML }, '*');
-          }
+      // Listen for print requests from parent
+      window.addEventListener('message', function(ev) {
+        if (ev.data && ev.data.type === 'MDSHARE_TRIGGER_PRINT') {
+          window.focus();
+          window.print();
         }
       });
 
@@ -987,31 +1054,73 @@ async function decryptPayload(ciphertext, salt, iv, password) {
       DOM.cursorPos.textContent = `Ln ${curLine}, Col ${curCol}`;
     }
 
-    // --- URL Sync & Hash Updating ---
-    async function updateUrlHash() {
-      if (!STATE.brotli) return;
+    // --- URL Generation & Syncing ---
+    async function generateCurrentShareUrl(isProtected = false, password = '') {
+      const markdown = DOM.markdownInput.value;
+      if (!markdown.trim()) {
+        return window.location.origin + window.location.pathname;
+      }
 
+      if (isProtected && password) {
+        if (STATE.brotli) {
+          const compressedBytes = compressString(markdown);
+          const { salt, iv, ciphertext } = await encryptBytes(compressedBytes, password);
+          return `${window.location.origin}${window.location.pathname}#code=enc.${salt}.${iv}.${ciphertext}`;
+        } else {
+          const enc = new TextEncoder();
+          const { salt, iv, ciphertext } = await encryptBytes(enc.encode(markdown), password);
+          return `${window.location.origin}${window.location.pathname}#code=enc.${salt}.${iv}.${ciphertext}`;
+        }
+      } else {
+        if (STATE.brotli) {
+          const compressed = compressString(markdown);
+          const b64 = bytesToBase64Url(compressed);
+          return `${window.location.origin}${window.location.pathname}#code=${b64}`;
+        } else {
+          // Uncompressed fallback if brotli is still loading
+          const enc = new TextEncoder();
+          const b64 = bytesToBase64Url(enc.encode(markdown));
+          return `${window.location.origin}${window.location.pathname}#raw=${b64}`;
+        }
+      }
+    }
+
+    async function updateUrlHash() {
       const markdown = DOM.markdownInput.value;
       if (!markdown.trim()) {
         history.replaceState(null, '', window.location.pathname);
         updateStatusDisplay('Empty Document', 'slate');
+        if (DOM.headerShareUrlText) {
+          DOM.headerShareUrlText.textContent = 'Empty Document';
+        }
+        if (DOM.shareUrlOutput) {
+          DOM.shareUrlOutput.value = window.location.href;
+        }
         return;
       }
 
       try {
+        const shareUrl = await generateCurrentShareUrl(STATE.isEncrypted, STATE.currentPassword);
+        const hashIdx = shareUrl.indexOf('#');
+        const hash = hashIdx !== -1 ? shareUrl.slice(hashIdx) : '';
+        history.replaceState(null, '', hash || window.location.pathname);
+
+        // Update header visible URL text
+        if (DOM.headerShareUrlText) {
+          DOM.headerShareUrlText.textContent = window.location.href;
+        }
+
+        // Update modal URL output if present
+        if (DOM.shareUrlOutput && (!DOM.toggleEncryptShare || !DOM.toggleEncryptShare.checked)) {
+          DOM.shareUrlOutput.value = window.location.href;
+          if (DOM.linkSizeInfo) {
+            DOM.linkSizeInfo.textContent = `URL Length: ${window.location.href.length.toLocaleString()} chars`;
+          }
+        }
+
         if (STATE.isEncrypted && STATE.currentPassword) {
-          // Encrypted flow
-          const compressedBytes = compressString(markdown);
-          const { salt, iv, ciphertext } = await encryptBytes(compressedBytes, STATE.currentPassword);
-          const hashVal = `code=enc.${salt}.${iv}.${ciphertext}`;
-          history.replaceState(null, '', `#${hashVal}`);
           updateStatusDisplay('Protected & Synced', 'amber', true);
         } else {
-          // Standard unencrypted flow
-          const compressed = compressString(markdown);
-          const b64 = bytesToBase64Url(compressed);
-          const hashVal = `code=${b64}`;
-          history.replaceState(null, '', `#${hashVal}`);
           updateStatusDisplay('Synced to URL', 'emerald', false);
         }
       } catch (err) {
@@ -1061,7 +1170,25 @@ async function decryptPayload(ciphertext, salt, iv, password) {
         return;
       }
 
-      // Check format: #code=... or #/code=...
+      // Check format: #code=... or #raw=...
+      const rawMatch = hash.match(/(?:^|\/)?raw=([^&]+)/);
+      if (rawMatch) {
+        try {
+          const rawBytes = base64UrlToBytes(rawMatch[1]);
+          const text = new TextDecoder().decode(rawBytes);
+          DOM.markdownInput.value = text;
+          STATE.isEncrypted = false;
+          STATE.currentPassword = '';
+          updateEditorStats();
+          triggerRender();
+          updateStatusDisplay('Loaded from URL', 'emerald', false);
+          if (DOM.headerShareUrlText) DOM.headerShareUrlText.textContent = window.location.href;
+          return;
+        } catch (rawErr) {
+          console.error('Error decoding raw payload:', rawErr);
+        }
+      }
+
       const match = hash.match(/(?:^|\/)?code=([^&]+)/);
       if (!match) {
         DOM.markdownInput.value = SAMPLE_MARKDOWN;
@@ -1177,27 +1304,36 @@ async function decryptPayload(ciphertext, salt, iv, password) {
 
     // --- Share Modal & Link Generation ---
     async function updateShareModalLink() {
-      if (!STATE.brotli) return;
-      const markdown = DOM.markdownInput.value;
       const shouldEncrypt = DOM.toggleEncryptShare.checked;
       const password = DOM.sharePassword.value;
 
       try {
-        let fullUrl = '';
-        if (shouldEncrypt && password) {
-          const compressed = compressString(markdown);
-          const { salt, iv, ciphertext } = await encryptBytes(compressed, password);
-          fullUrl = `${window.location.origin}${window.location.pathname}#code=enc.${salt}.${iv}.${ciphertext}`;
-        } else {
-          const compressed = compressString(markdown);
-          const b64 = bytesToBase64Url(compressed);
-          fullUrl = `${window.location.origin}${window.location.pathname}#code=${b64}`;
-        }
+        const fullUrl = await generateCurrentShareUrl(shouldEncrypt, password);
         DOM.shareUrlOutput.value = fullUrl;
         DOM.linkSizeInfo.textContent = `URL Length: ${fullUrl.length.toLocaleString()} characters`;
       } catch (err) {
         console.error('Error calculating share link:', err);
       }
+    }
+
+    // Quick Copy from Header Button
+    if (DOM.btnQuickCopyUrl) {
+      DOM.btnQuickCopyUrl.addEventListener('click', async () => {
+        const url = window.location.href;
+        try {
+          await navigator.clipboard.writeText(url);
+          showToast('Shareable URL copied to clipboard!', 'success');
+        } catch (err) {
+          // Fallback
+          const tempInput = document.createElement('input');
+          tempInput.value = url;
+          document.body.appendChild(tempInput);
+          tempInput.select();
+          document.execCommand('copy');
+          document.body.removeChild(tempInput);
+          showToast('Shareable URL copied to clipboard!', 'success');
+        }
+      });
     }
 
     DOM.btnOpenShareModal.addEventListener('click', async () => {
@@ -1368,16 +1504,31 @@ async function decryptPayload(ciphertext, salt, iv, password) {
 
     // --- Dedicated Clean Print View ---
     DOM.btnPrint.addEventListener('click', () => {
-      // Extract the rendered HTML from iframe or compile clean prose
-      const iframeDoc = DOM.previewFrame.contentDocument || DOM.previewFrame.contentWindow.document;
-      const content = iframeDoc ? iframeDoc.getElementById('content') : null;
-      if (content) {
-        DOM.printMountPoint.innerHTML = `
-          <div class="prose max-w-none">
-            ${content.innerHTML}
-          </div>
-        `;
-      } else {
+      // 1. Try direct printing from the rendered sandboxed iframe
+      try {
+        if (DOM.previewFrame && DOM.previewFrame.contentWindow) {
+          DOM.previewFrame.contentWindow.focus();
+          DOM.previewFrame.contentWindow.print();
+          return;
+        }
+      } catch (err) {
+        console.warn('Direct iframe print failed, falling back to print mount point:', err);
+      }
+
+      // 2. Fallback: Extract the rendered HTML from iframe or compile clean prose into print mount point
+      try {
+        const iframeDoc = DOM.previewFrame.contentDocument || (DOM.previewFrame.contentWindow && DOM.previewFrame.contentWindow.document);
+        const content = iframeDoc ? iframeDoc.getElementById('content') : null;
+        if (content) {
+          DOM.printMountPoint.innerHTML = `
+            <div class="prose max-w-none">
+              ${content.innerHTML}
+            </div>
+          `;
+        } else {
+          DOM.printMountPoint.innerHTML = `<pre>${escapeHtml(DOM.markdownInput.value)}</pre>`;
+        }
+      } catch (e) {
         DOM.printMountPoint.innerHTML = `<pre>${escapeHtml(DOM.markdownInput.value)}</pre>`;
       }
       window.print();
@@ -1667,11 +1818,13 @@ async function decryptPayload(ciphertext, salt, iv, password) {
 
       try {
         await loadFromUrlHash();
+        await updateUrlHash();
       } catch (err) {
         console.error('Failed to load initial document:', err);
         DOM.markdownInput.value = SAMPLE_MARKDOWN;
         updateEditorStats();
         triggerRender();
+        await updateUrlHash();
       }
     }
 
