@@ -442,8 +442,6 @@ Disable-Footer: true
 
   <!-- APPLICATION LOGIC (ES MODULE) -->
   <script type="module">
-    import brotliPromise from 'https://esm.sh/brotli-wasm@3.0.1';
-
     // --- State Management ---
     const STATE = {
       brotli: null,
@@ -724,14 +722,19 @@ async function decryptPayload(ciphertext, salt, iv, password) {
     function generateSandboxSrcdoc(rawMarkdown, isDark) {
       // Escape backticks and dollar signs in markdown for safe script injection
       const escapedMarkdown = JSON.stringify(rawMarkdown);
+      const openScript = '<' + 'script>';
+      const closeScript = '</' + 'script>';
+      const openBody = '<' + 'body class="prose ' + (isDark ? 'prose-invert' : '') + ' max-w-4xl mx-auto">';
+      const closeBody = '</' + 'body>';
+      const closeHtml = '</' + 'html>';
 
       return `<!DOCTYPE html>
 <html lang="en" class="${isDark ? 'dark' : ''}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.tailwindcss.com?plugins=typography"><\/script>
-  <script>
+  <` + `script src="https://cdn.tailwindcss.com?plugins=typography"></` + `script>
+  <` + `script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
@@ -742,13 +745,13 @@ async function decryptPayload(ciphertext, salt, iv, password) {
         }
       }
     };
-  <\/script>
+  </` + `script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${isDark ? 'github-dark' : 'github'}.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.1/marked.min.js"><\/script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"><\/script>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"><\/script>
-  <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"><\/script>
+  <` + `script src="https://cdn.jsdelivr.net/npm/marked@12.0.1/marked.min.js"></` + `script>
+  <` + `script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></` + `script>
+  <` + `script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></` + `script>
+  <` + `script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></` + `script>
   <style>
     body {
       background-color: ${isDark ? '#020617' : '#ffffff'};
@@ -831,10 +834,10 @@ async function decryptPayload(ciphertext, salt, iv, password) {
     }
   </style>
 </head>
-<body class="prose ${isDark ? 'prose-invert' : ''} max-w-4xl mx-auto">
+` + openBody + `
   <div id="content"></div>
 
-  <script>
+  ` + openScript + `
     (async function() {
       const rawMd = ${escapedMarkdown};
       const isDark = ${isDark};
@@ -851,28 +854,28 @@ async function decryptPayload(ciphertext, salt, iv, password) {
       const renderer = new marked.Renderer();
 
       // Custom code block renderer to intercept mermaid
-      const originalCodeRenderer = renderer.code.bind(renderer);
-      renderer.code = function(code, lang, escaped) {
+      renderer.code = function(token) {
+        var code = token.text;
+        var lang = token.lang;
+
         if (lang === 'mermaid') {
-          const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
-          return \`
-            <div class="mermaid-wrapper not-prose" data-mermaid-id="\${id}">
-              <div class="mermaid-controls">
-                <button onclick="window.panzoomZoom('\${id}', 1.25)" title="Zoom In"><i class="fa-solid fa-plus"></i></button>
-                <button onclick="window.panzoomZoom('\${id}', 0.8)" title="Zoom Out"><i class="fa-solid fa-minus"></i></button>
-                <button onclick="window.panzoomReset('\${id}')" title="Reset Zoom"><i class="fa-solid fa-rotate-left"></i></button>
-                <button onclick="window.panzoomFullscreen('\${id}')" title="Fullscreen Inspector"><i class="fa-solid fa-expand"></i></button>
-              </div>
-              <div class="mermaid-viewport" id="viewport-\${id}">
-                <div class="mermaid-chart" id="\${id}">\${code}</div>
-              </div>
-            </div>
-          \`;
+          var id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+          return '<div class="mermaid-wrapper not-prose" data-mermaid-id="' + id + '">'
+            + '<div class="mermaid-controls">'
+            + '<button data-action="zoom-in" data-target="' + id + '" title="Zoom In"><i class="fa-solid fa-plus"></i></button>'
+            + '<button data-action="zoom-out" data-target="' + id + '" title="Zoom Out"><i class="fa-solid fa-minus"></i></button>'
+            + '<button data-action="reset" data-target="' + id + '" title="Reset Zoom"><i class="fa-solid fa-rotate-left"></i></button>'
+            + '<button data-action="fullscreen" data-target="' + id + '" title="Fullscreen Inspector"><i class="fa-solid fa-expand"></i></button>'
+            + '</div>'
+            + '<div class="mermaid-viewport" id="viewport-' + id + '">'
+            + '<div class="mermaid-chart" id="' + id + '">' + code + '</div>'
+            + '</div>'
+            + '</div>';
         }
 
-        const validLang = !!(lang && hljs.getLanguage(lang));
-        const highlighted = validLang ? hljs.highlight(code, { language: lang }).value : hljs.highlightAuto(code).value;
-        return \`<pre><code class="hljs language-\${lang || ''}">\${highlighted}</code></pre>\`;
+        var validLang = !!(lang && hljs.getLanguage(lang));
+        var highlighted = validLang ? hljs.highlight(code, { language: lang }).value : hljs.highlightAuto(code).value;
+        return '<pre><code class="hljs language-' + (lang || '') + '">' + highlighted + '</code></pre>';
       };
 
       marked.setOptions({
@@ -886,25 +889,6 @@ async function decryptPayload(ciphertext, salt, iv, password) {
 
       // Render Mermaid diagrams
       const panzoomInstances = {};
-
-      window.panzoomZoom = function(id, factor) {
-        if (panzoomInstances[id]) {
-          panzoomInstances[id].zoomWithWheel({ deltaY: factor > 1 ? -100 : 100 });
-        }
-      };
-
-      window.panzoomReset = function(id) {
-        if (panzoomInstances[id]) {
-          panzoomInstances[id].reset();
-        }
-      };
-
-      window.panzoomFullscreen = function(id) {
-        const svgEl = document.querySelector('#' + id + ' svg');
-        if (svgEl) {
-          window.parent.postMessage({ type: 'MDSHARE_VIEW_DIAGRAM', svg: svgEl.outerHTML }, '*');
-        }
-      };
 
       const mermaidNodes = document.querySelectorAll('.mermaid-chart');
       for (const node of mermaidNodes) {
@@ -928,12 +912,38 @@ async function decryptPayload(ciphertext, salt, iv, password) {
         }
       }
 
+      // Event delegation for mermaid diagram controls
+      document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        var action = btn.getAttribute('data-action');
+        var targetId = btn.getAttribute('data-target');
+        if (!targetId) return;
+        var pz = panzoomInstances[targetId];
+        if (action === 'zoom-in' && pz) {
+          pz.zoomIn();
+        } else if (action === 'zoom-out' && pz) {
+          pz.zoomOut();
+        } else if (action === 'reset' && pz) {
+          pz.reset();
+        } else if (action === 'fullscreen') {
+          var svgEl = document.querySelector('#' + targetId + ' svg');
+          if (svgEl) {
+            window.parent.postMessage({ type: 'MDSHARE_VIEW_DIAGRAM', svg: svgEl.outerHTML }, '*');
+          }
+        }
+      });
+
+      const closeScript = '</' + 'script>';
+      const closeBody = '</' + 'body>';
+      const closeHtml = '</' + 'html>';
+
       // Notify parent that render is complete
       window.parent.postMessage({ type: 'MDSHARE_RENDER_DONE' }, '*');
     })();
-  <\/script>
-</body>
-</html>`;
+  ` + closeScript + `
+` + closeBody + `
+` + closeHtml;
     }
 
     // --- Core Editor & Preview Render Logic ---
@@ -1040,6 +1050,14 @@ async function decryptPayload(ciphertext, salt, iv, password) {
         updateEditorStats();
         triggerRender();
         scheduleUrlUpdate();
+        return;
+      }
+
+      if (!STATE.brotli) {
+        showToast('Compression engine unavailable — cannot decode shared link.', 'error');
+        DOM.markdownInput.value = SAMPLE_MARKDOWN;
+        updateEditorStats();
+        triggerRender();
         return;
       }
 
@@ -1639,24 +1657,30 @@ async function decryptPayload(ciphertext, salt, iv, password) {
       setViewMode(STATE.viewMode);
 
       try {
-        // Initialize Brotli WASM
-        const resolvedBrotli = await brotliPromise;
-        STATE.brotli = resolvedBrotli;
+        const brotliModule = await import('https://esm.sh/brotli-wasm@3.0.1');
+        STATE.brotli = await brotliModule.default;
         console.log('MD-Share: Brotli WASM initialized successfully.');
+      } catch (err) {
+        console.error('Failed to initialize Brotli WASM:', err);
+        showToast('Compression unavailable — editing still works, sharing links disabled.', 'warning');
+      }
 
-        // Load document from URL hash if available
+      try {
         await loadFromUrlHash();
       } catch (err) {
-        console.error('Failed to initialize MD-Share:', err);
-        showToast('WASM Initialization failed, using fallback.', 'warning');
+        console.error('Failed to load initial document:', err);
         DOM.markdownInput.value = SAMPLE_MARKDOWN;
         updateEditorStats();
         triggerRender();
       }
     }
 
-    // Run on startup
-    window.addEventListener('DOMContentLoaded', init);
+    // Run on startup — ES modules are deferred, so DOMContentLoaded may have already fired
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
   </script>
 </body>
 </html>
