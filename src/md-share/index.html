@@ -1,0 +1,1662 @@
+<!-- APP-META
+Title: MD-Share
+Description: Quick share you markdown 100% privately for free without any backend.
+Category: Productivity
+Icon: fa-solid fa-file-shield
+Status: published
+Disable-Footer: true
+-->
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MD-Share | Modern Markdown & Code Playground</title>
+  <meta name="description" content="MD-Share: Advanced zero-backend Markdown and code playground with client-side Brotli compression, AES-GCM password protection, Mermaid diagrams with PanZoom, and sandboxed preview." />
+
+  <!-- Tailwind CSS with Typography plugin -->
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          },
+          fontFamily: {
+            mono: ['JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+            sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+
+  <!-- FontAwesome for crisp icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.4);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 163, 175, 0.7);
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: rgba(75, 85, 99, 0.5);
+    }
+    .dark ::-webkit-scrollbar-thumb:hover {
+      background: rgba(75, 85, 99, 0.8);
+    }
+
+    /* Print styles: strip editor, header, toolbar, modals and display only document */
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+      #print-mount-point, #print-mount-point * {
+        visibility: visible !important;
+      }
+      #print-mount-point {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        display: block !important;
+        padding: 24px !important;
+        background: white !important;
+        color: black !important;
+      }
+      #main-app-container, #modal-backdrop, #toast-container, header {
+        display: none !important;
+      }
+    }
+
+    /* Resizer styling */
+    .gutter-col {
+      cursor: col-resize;
+      transition: background-color 0.15s ease;
+    }
+    .gutter-col:hover, .gutter-col.dragging {
+      background-color: #6366f1 !important;
+    }
+
+    /* Subtle pulse animation for loading/status */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 0.4; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .pulse-ring {
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+
+<body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans flex flex-col antialiased selection:bg-indigo-500 selection:text-white transition-colors duration-200 overflow-hidden">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="h-14 border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur px-4 flex items-center justify-between shrink-0 z-30 select-none">
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+          <i class="fa-solid fa-code text-sm"></i>
+        </div>
+        <div class="flex items-baseline gap-1.5">
+          <span class="font-bold text-base tracking-tight bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">MD-Share</span>
+          <span class="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50">Zero-Backend</span>
+        </div>
+      </div>
+
+      <!-- Quick status indicator -->
+      <div id="url-status" class="hidden md:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 border-l border-slate-200 dark:border-slate-800 pl-3">
+        <span id="status-dot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span id="status-text">Synced to URL</span>
+        <span id="lock-badge" class="hidden ml-1 px-1.5 py-0.2 text-[10px] rounded font-medium bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+          <i class="fa-solid fa-lock text-[9px]"></i> Encrypted
+        </span>
+      </div>
+    </div>
+
+    <!-- Center layout mode switcher (Desktop) -->
+    <div class="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-lg border border-slate-200/70 dark:border-slate-700/60 text-xs font-medium">
+      <button id="view-mode-split" class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" title="Split Screen">
+        <i class="fa-solid fa-columns"></i>
+        <span class="hidden sm:inline">Split</span>
+      </button>
+      <button id="view-mode-editor" class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white" title="Editor Only">
+        <i class="fa-solid fa-pen-to-square"></i>
+        <span class="hidden sm:inline">Editor</span>
+      </button>
+      <button id="view-mode-preview" class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white" title="Preview Only">
+        <i class="fa-solid fa-eye"></i>
+        <span class="hidden sm:inline">Preview</span>
+      </button>
+    </div>
+
+    <!-- Right-side actions -->
+    <div class="flex items-center gap-1 sm:gap-2">
+      <!-- File input element hidden -->
+      <input type="file" id="file-upload-input" class="hidden" accept=".md,.markdown,.txt,.html,.js,.ts,.json,.py,.css,.sh" />
+
+      <!-- Upload button -->
+      <button id="btn-upload" class="p-2 text-slate-600 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-sm" title="Upload Document (.md, .txt, .html, code)">
+        <i class="fa-solid fa-folder-open"></i>
+      </button>
+
+      <!-- Download Dropdown / Button -->
+      <div class="relative" id="download-dropdown-container">
+        <button id="btn-download" class="p-2 text-slate-600 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-sm" title="Export / Download">
+          <i class="fa-solid fa-download"></i>
+        </button>
+        <div id="download-menu" class="hidden absolute right-0 mt-1 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 z-40 text-xs">
+          <button id="export-md" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 text-slate-700 dark:text-slate-200">
+            <i class="fa-solid fa-file-lines text-indigo-500"></i> Save as Markdown (.md)
+          </button>
+          <button id="export-html" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 text-slate-700 dark:text-slate-200">
+            <i class="fa-brands fa-html5 text-orange-500"></i> Standalone HTML (.html)
+          </button>
+        </div>
+      </div>
+
+      <!-- Print Button -->
+      <button id="btn-print" class="p-2 text-slate-600 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-sm" title="Clean Document Print">
+        <i class="fa-solid fa-print"></i>
+      </button>
+
+      <!-- Fullscreen / Open in New Tab -->
+      <button id="btn-fullscreen-preview" class="p-2 text-slate-600 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-sm" title="Open Rendered Preview in New Tab">
+        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+      </button>
+
+      <!-- Theme Switcher -->
+      <button id="btn-theme-toggle" class="p-2 text-slate-600 hover:text-amber-500 dark:text-slate-300 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-sm" title="Toggle Dark/Light Mode">
+        <i class="fa-solid fa-moon dark:hidden"></i>
+        <i class="fa-solid fa-sun hidden dark:inline"></i>
+      </button>
+
+      <div class="h-5 w-px bg-slate-200 dark:bg-slate-800 mx-0.5 sm:mx-1"></div>
+
+      <!-- Share Button -->
+      <button id="btn-open-share-modal" class="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium text-xs rounded-lg shadow-sm shadow-indigo-500/25 flex items-center gap-1.5 transition-all transform active:scale-95">
+        <i class="fa-solid fa-share-nodes"></i>
+        <span>Share</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE CONTAINER -->
+  <main id="main-app-container" class="flex-1 flex flex-col md:flex-row relative min-h-0 overflow-hidden">
+    
+    <!-- LEFT PANEL: CODE & MARKDOWN EDITOR -->
+    <section id="editor-panel" class="flex flex-col min-w-0 h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-75 relative w-full md:w-1/2">
+      <!-- Editor Subheader / Toolbar -->
+      <div class="h-9 px-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shrink-0 select-none">
+        <div class="flex items-center gap-2">
+          <span class="font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <i class="fa-brands fa-markdown text-indigo-500"></i> Markdown Source
+          </span>
+          <div class="flex items-center gap-1 ml-2">
+            <button id="sample-guide-btn" class="text-[11px] px-2 py-0.5 rounded bg-slate-200/70 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors" title="Load Interactive Demo">
+              Load Demo
+            </button>
+            <button id="clear-editor-btn" class="text-[11px] px-2 py-0.5 rounded text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors" title="Clear Editor">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 text-[11px]">
+          <span id="char-count">0 chars</span>
+          <span class="text-slate-300 dark:text-slate-700">|</span>
+          <span id="word-count">0 words</span>
+          <span class="text-slate-300 dark:text-slate-700">|</span>
+          <span id="cursor-pos">Ln 1, Col 1</span>
+        </div>
+      </div>
+
+      <!-- Drag and Drop Overlay Indicator -->
+      <div id="drag-drop-overlay" class="hidden absolute inset-0 bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-dashed border-indigo-500 z-20 backdrop-blur-sm flex flex-col items-center justify-center pointer-events-none">
+        <i class="fa-solid fa-cloud-arrow-up text-4xl text-indigo-600 dark:text-indigo-400 mb-2 animate-bounce"></i>
+        <p class="font-semibold text-sm text-indigo-700 dark:text-indigo-300">Drop your file to load into MD-Share</p>
+        <p class="text-xs text-indigo-500/80">Supports .md, .txt, .html, and code files</p>
+      </div>
+
+      <!-- Editor Body: Line Numbers + Textarea -->
+      <div class="flex-1 relative flex min-h-0 overflow-hidden">
+        <!-- Line Numbers Column -->
+        <div id="line-numbers" class="w-11 py-3 px-2 text-right select-none font-mono text-xs text-slate-400 dark:text-slate-600 bg-slate-50/70 dark:bg-slate-900/50 border-r border-slate-200/50 dark:border-slate-800/50 overflow-hidden leading-6 shrink-0">
+          1
+        </div>
+
+        <!-- Raw Textarea with tab, auto-closing & auto-indent support -->
+        <textarea id="markdown-input" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" class="flex-1 w-full h-full p-3 bg-transparent font-mono text-xs md:text-[13px] leading-6 resize-none focus:outline-none text-slate-800 dark:text-slate-100 overflow-auto whitespace-pre tab-4 selection:bg-indigo-500 selection:text-white" placeholder="Write or paste Markdown here... (Markdown, Mermaid, HTML & code highlighting supported)"></textarea>
+      </div>
+    </section>
+
+    <!-- RESIZABLE SPLIT GUTTER (Desktop only) -->
+    <div id="split-gutter" class="gutter-col hidden md:block w-1.5 bg-slate-200/70 dark:bg-slate-800 hover:bg-indigo-500 shrink-0 z-10" title="Drag to resize panels"></div>
+
+    <!-- RIGHT PANEL: SANDBOXED LIVE PREVIEW -->
+    <section id="preview-panel" class="flex flex-col min-w-0 h-full bg-white dark:bg-slate-950 transition-all duration-75 relative w-full md:w-1/2">
+      <!-- Preview Subheader -->
+      <div class="h-9 px-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shrink-0 select-none">
+        <div class="flex items-center gap-2">
+          <span class="font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-desktop text-emerald-500"></i> Sandboxed Live Preview
+          </span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60">
+            Isolated Sandbox
+          </span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="refresh-preview-btn" class="text-[11px] px-2 py-0.5 rounded bg-slate-200/70 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1" title="Force re-render">
+            <i class="fa-solid fa-arrows-rotate"></i>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Sandboxed iframe container -->
+      <div class="flex-1 relative min-h-0 bg-white dark:bg-slate-950">
+        <!-- Render Loading Indicator -->
+        <div id="render-loading-spinner" class="hidden absolute top-3 right-3 bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded shadow text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1.5 z-10">
+          <i class="fa-solid fa-circle-notch fa-spin text-indigo-500"></i>
+          <span>Rendering...</span>
+        </div>
+
+        <iframe id="preview-frame" sandbox="allow-scripts allow-modals" class="w-full h-full border-0 block bg-white dark:bg-slate-950" title="Rendered Markdown Preview"></iframe>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- PRINT HIDDEN MOUNT POINT (Populated dynamically on print) -->
+  <div id="print-mount-point" class="hidden"></div>
+
+  <!-- SHARE & PASSWORD PROTECTION MODAL -->
+  <div id="share-modal-backdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transition-all transform scale-95 opacity-0 duration-200" id="share-modal-card">
+      
+      <!-- Modal Header -->
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/40">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-share-nodes"></i>
+          </div>
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Share Document</h3>
+        </div>
+        <button id="close-share-modal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 space-y-4 text-xs">
+        <div>
+          <label class="block font-medium text-slate-700 dark:text-slate-300 mb-1">Compression & Security</label>
+          <p class="text-slate-500 dark:text-slate-400 leading-relaxed">
+            MD-Share packs your entire document, diagrams, and code into a high-ratio Brotli-compressed URL hash. No database or server is used.
+          </p>
+        </div>
+
+        <!-- Lock with Password Option -->
+        <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-shield-halved text-indigo-500"></i>
+              <span class="font-medium text-slate-800 dark:text-slate-200">Lock with Password</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggle-encrypt-share" class="sr-only peer">
+              <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          <!-- Password input drawer -->
+          <div id="password-input-group" class="hidden pt-2 border-t border-slate-200/70 dark:border-slate-700/60 space-y-2">
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">
+              Uses AES-GCM 256-bit encryption with PBKDF2 (100,000 rounds). The password never leaves the browser.
+            </p>
+            <div class="relative">
+              <input type="password" id="share-password" placeholder="Enter protection password" class="w-full pl-8 pr-10 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs" />
+              <i class="fa-solid fa-key absolute left-2.5 top-2.5 text-slate-400 text-[11px]"></i>
+              <button type="button" id="toggle-pw-visibility" class="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" title="Show password">
+                <i class="fa-solid fa-eye text-xs"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generated Link Output -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <label class="block font-medium text-slate-700 dark:text-slate-300">Shareable URL</label>
+            <span id="link-size-info" class="text-[10px] text-slate-400">Payload: calculating...</span>
+          </div>
+          <div class="flex gap-2">
+            <input type="text" id="share-url-output" readonly class="flex-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 text-xs font-mono select-all focus:outline-none" />
+            <button id="btn-copy-share-url" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95 shrink-0">
+              <i class="fa-solid fa-copy"></i>
+              <span>Copy</span>
+            </button>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-slate-500 dark:text-slate-400 text-center">
+          Anyone with this link can view the exact Markdown document, formatted rendering, and diagrams.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- DECRYPTION PROMPT MODAL (Triggered when loading password-protected URL) -->
+  <div id="decrypt-modal-backdrop" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4">
+      <div class="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 mx-auto flex items-center justify-center text-xl shadow-inner">
+        <i class="fa-solid fa-lock"></i>
+      </div>
+      <div>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white">Protected Document</h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          This MD-Share document is encrypted with AES-256-GCM. Please enter the password to decrypt.
+        </p>
+      </div>
+
+      <form id="decrypt-form" class="space-y-3">
+        <div class="relative text-left">
+          <input type="password" id="decrypt-password-input" required placeholder="Enter decryption password" class="w-full pl-8 pr-10 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs" />
+          <i class="fa-solid fa-key absolute left-2.5 top-3 text-slate-400 text-xs"></i>
+          <button type="button" id="toggle-decrypt-pw-visibility" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <i class="fa-solid fa-eye text-xs"></i>
+          </button>
+        </div>
+
+        <div id="decrypt-error" class="hidden text-rose-600 dark:text-rose-400 text-xs bg-rose-50 dark:bg-rose-950/50 p-2 rounded-lg border border-rose-200 dark:border-rose-900/60 flex items-center gap-1.5 text-left">
+          <i class="fa-solid fa-circle-exclamation shrink-0"></i>
+          <span id="decrypt-error-text">Decryption failed. Invalid password.</span>
+        </div>
+
+        <div class="flex gap-2 pt-1">
+          <button type="button" id="btn-cancel-decrypt" class="flex-1 py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-xs transition-colors">
+            Start Blank
+          </button>
+          <button type="submit" id="btn-submit-decrypt" class="flex-1 py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-xs shadow-md shadow-amber-500/20 transition-all active:scale-95 flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-lock-open"></i>
+            <span>Unlock</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- DIAGRAM FULLSCREEN VIEWER MODAL -->
+  <div id="diagram-modal-backdrop" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 hidden flex flex-col p-4">
+    <div class="flex items-center justify-between text-white pb-3 shrink-0">
+      <div class="flex items-center gap-2 text-sm font-semibold">
+        <i class="fa-solid fa-diagram-project text-indigo-400"></i>
+        <span>Mermaid Diagram Inspector</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="diagram-modal-download-svg" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-xs rounded-lg transition-colors flex items-center gap-1.5">
+          <i class="fa-solid fa-download"></i> Download SVG
+        </button>
+        <button id="close-diagram-modal" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+    </div>
+    <div id="diagram-modal-body" class="flex-1 relative bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center p-4 border border-slate-800">
+      <!-- Diagram SVG will be rendered/injected here -->
+    </div>
+    <div class="pt-2 text-center text-xs text-slate-400 shrink-0">
+      Scroll with mouse wheel or pinch to zoom. Drag to pan.
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast-container" class="fixed bottom-5 right-5 flex flex-col gap-2 z-50 pointer-events-none"></div>
+
+  <!-- APPLICATION LOGIC (ES MODULE) -->
+  <script type="module">
+    import brotliPromise from 'https://esm.sh/brotli-wasm@3.0.1';
+
+    // --- State Management ---
+    const STATE = {
+      brotli: null,
+      theme: localStorage.getItem('mdshare-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
+      viewMode: localStorage.getItem('mdshare-viewmode') || 'split', // 'split' | 'editor' | 'preview'
+      currentPassword: '',
+      isEncrypted: false,
+      encryptedPayload: null, // { salt, iv, ciphertext }
+      splitPercent: 50,
+      isDraggingSplit: false
+    };
+
+    // DOM References
+    const DOM = {
+      html: document.documentElement,
+      editorPanel: document.getElementById('editor-panel'),
+      previewPanel: document.getElementById('preview-panel'),
+      splitGutter: document.getElementById('split-gutter'),
+      markdownInput: document.getElementById('markdown-input'),
+      lineNumbers: document.getElementById('line-numbers'),
+      previewFrame: document.getElementById('preview-frame'),
+      charCount: document.getElementById('char-count'),
+      wordCount: document.getElementById('word-count'),
+      cursorPos: document.getElementById('cursor-pos'),
+      viewModeSplit: document.getElementById('view-mode-split'),
+      viewModeEditor: document.getElementById('view-mode-editor'),
+      viewModePreview: document.getElementById('view-mode-preview'),
+      btnThemeToggle: document.getElementById('btn-theme-toggle'),
+      statusDot: document.getElementById('status-dot'),
+      statusText: document.getElementById('status-text'),
+      lockBadge: document.getElementById('lock-badge'),
+      fileUploadInput: document.getElementById('file-upload-input'),
+      btnUpload: document.getElementById('btn-upload'),
+      btnDownload: document.getElementById('btn-download'),
+      downloadMenu: document.getElementById('download-menu'),
+      exportMd: document.getElementById('export-md'),
+      exportHtml: document.getElementById('export-html'),
+      btnPrint: document.getElementById('btn-print'),
+      btnFullscreenPreview: document.getElementById('btn-fullscreen-preview'),
+      btnOpenShareModal: document.getElementById('btn-open-share-modal'),
+      shareModalBackdrop: document.getElementById('share-modal-backdrop'),
+      shareModalCard: document.getElementById('share-modal-card'),
+      closeShareModal: document.getElementById('close-share-modal'),
+      toggleEncryptShare: document.getElementById('toggle-encrypt-share'),
+      passwordInputGroup: document.getElementById('password-input-group'),
+      sharePassword: document.getElementById('share-password'),
+      togglePwVisibility: document.getElementById('toggle-pw-visibility'),
+      shareUrlOutput: document.getElementById('share-url-output'),
+      btnCopyShareUrl: document.getElementById('btn-copy-share-url'),
+      linkSizeInfo: document.getElementById('link-size-info'),
+      decryptModalBackdrop: document.getElementById('decrypt-modal-backdrop'),
+      decryptForm: document.getElementById('decrypt-form'),
+      decryptPasswordInput: document.getElementById('decrypt-password-input'),
+      decryptError: document.getElementById('decrypt-error'),
+      decryptErrorText: document.getElementById('decrypt-error-text'),
+      btnCancelDecrypt: document.getElementById('btn-cancel-decrypt'),
+      toggleDecryptPwVisibility: document.getElementById('toggle-decrypt-pw-visibility'),
+      diagramModalBackdrop: document.getElementById('diagram-modal-backdrop'),
+      diagramModalBody: document.getElementById('diagram-modal-body'),
+      closeDiagramModal: document.getElementById('close-diagram-modal'),
+      diagramModalDownloadSvg: document.getElementById('diagram-modal-download-svg'),
+      dragDropOverlay: document.getElementById('drag-drop-overlay'),
+      sampleGuideBtn: document.getElementById('sample-guide-btn'),
+      clearEditorBtn: document.getElementById('clear-editor-btn'),
+      refreshPreviewBtn: document.getElementById('refresh-preview-btn'),
+      renderLoadingSpinner: document.getElementById('render-loading-spinner'),
+      printMountPoint: document.getElementById('print-mount-point'),
+      toastContainer: document.getElementById('toast-container')
+    };
+
+    // Default Showcase Markdown
+    const SAMPLE_MARKDOWN = `# 🚀 Welcome to MD-Share
+
+MD-Share is an **advanced, zero-backend Markdown and code playground** that compresses your entire document directly into the URL using **WebAssembly Brotli** and optional **AES-GCM 256-bit encryption**.
+
+---
+
+## 🎨 Interactive Features
+
+- 🔒 **Zero-Backend Security**: Derive keys via **PBKDF2 (100,000 rounds)** and encrypt client-side.
+- ⚡ **WASM Brotli Compression**: Ultra-compact URL hashes, 20-30% smaller than Gzip.
+- 📊 **Mermaid Diagrams**: Interactive flowcharts & diagrams with **PanZoom** controls.
+- 🛡️ **Sandboxed Execution**: Isolated HTML/CSS/JS preview in secure \`iframe\`.
+- 🖨️ **Clean Print View**: Dedicated print stylesheet stripping all toolbars.
+
+---
+
+## 📊 Live Mermaid Diagram (Interactive Pan & Zoom)
+
+\`\`\`mermaid
+flowchart TD
+    A[User Writes Markdown] --> B{Choose Share Mode}
+    B -->|Standard| C[WASM Brotli Compress]
+    B -->|Password Protected| D[PBKDF2 + AES-GCM 256]
+    D --> C
+    C --> E[Generate Base64URL Fragment]
+    E --> F[Instant Shareable Link 🔗]
+    F --> G[Recipient Browser Decrypts & Renders Client-Side]
+\`\`\`
+
+> 💡 **Tip:** Use the controls on the diagram above to **Zoom**, **Pan**, or open in **Fullscreen**!
+
+---
+
+## 💻 Code Highlighting with Highlight.js
+
+\`\`\`javascript
+// Client-side WebCrypto AES-GCM decryption
+async function decryptPayload(ciphertext, salt, iv, password) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]
+  );
+  const key = await crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"]
+  );
+  return await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+}
+\`\`\`
+
+---
+
+## 📋 GFM Table Example
+
+| Feature | MD-Share | Traditional Gists |
+| :--- | :---: | :---: |
+| **Backend Requirement** | 🚫 None (Pure Client) | ☁️ Cloud Database |
+| **End-to-End Encryption**| 🛡️ AES-GCM 256-bit | ❌ Server Stored Plaintext |
+| **Diagrams with PanZoom**| ✅ Native Mermaid | ❌ Static or None |
+| **Offline Compatible** | ✅ 100% Client-Side | ❌ Requires API |
+
+---
+
+## 🛠️ Embedded HTML / CSS Sandbox Test
+
+<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); color: white; box-shadow: 0 4px 15px rgba(99,102,241,0.3);">
+  <h4 style="margin: 0 0 8px 0; font-weight: 700; color: white;">✨ Safe Isolated Sandbox</h4>
+  <p style="margin: 0; font-size: 0.9em; opacity: 0.95;">
+    Custom HTML elements and scripts run securely inside an isolated sandbox iframe.
+  </p>
+</div>
+`;
+
+    // --- Toast Notifications ---
+    function showToast(message, type = 'info', duration = 3000) {
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto px-4 py-2.5 rounded-xl shadow-lg border text-xs font-medium flex items-center gap-2 transform translate-y-2 opacity-0 transition-all duration-200 ${
+        type === 'success' ? 'bg-emerald-600 text-white border-emerald-500' :
+        type === 'error' ? 'bg-rose-600 text-white border-rose-500' :
+        type === 'warning' ? 'bg-amber-500 text-slate-950 border-amber-400' :
+        'bg-slate-900 text-white border-slate-700 dark:bg-slate-800 dark:border-slate-600'
+      }`;
+
+      const icon = type === 'success' ? 'fa-check' :
+                   type === 'error' ? 'fa-circle-xmark' :
+                   type === 'warning' ? 'fa-triangle-exclamation' : 'fa-circle-info';
+
+      toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${escapeHtml(message)}</span>`;
+      DOM.toastContainer.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-2', 'opacity-0');
+        setTimeout(() => toast.remove(), 250);
+      }, duration);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // --- Base64URL & Binary Helpers ---
+    function bytesToBase64Url(uint8Array) {
+      let binString = '';
+      const len = uint8Array.byteLength;
+      for (let i = 0; i < len; i++) {
+        binString += String.fromCharCode(uint8Array[i]);
+      }
+      return btoa(binString)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+    }
+
+    function base64UrlToBytes(b64url) {
+      let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4 !== 0) {
+        b64 += '=';
+      }
+      const binString = atob(b64);
+      const bytes = new Uint8Array(binString.length);
+      for (let i = 0; i < binString.length; i++) {
+        bytes[i] = binString.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    // --- WebCrypto Encryption / Decryption ---
+    async function deriveKey(password, salt) {
+      const enc = new TextEncoder();
+      const keyMaterial = await window.crypto.subtle.importKey(
+        'raw',
+        enc.encode(password),
+        'PBKDF2',
+        false,
+        ['deriveKey']
+      );
+      return window.crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt: salt,
+          iterations: 100000,
+          hash: 'SHA-256'
+        },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    async function encryptBytes(bytes, password) {
+      const salt = window.crypto.getRandomValues(new Uint8Array(16));
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const key = await deriveKey(password, salt);
+      const ciphertextBuffer = await window.crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: iv },
+        key,
+        bytes
+      );
+      return {
+        salt: bytesToBase64Url(salt),
+        iv: bytesToBase64Url(iv),
+        ciphertext: bytesToBase64Url(new Uint8Array(ciphertextBuffer))
+      };
+    }
+
+    async function decryptBytes(ciphertextB64, saltB64, ivB64, password) {
+      const salt = base64UrlToBytes(saltB64);
+      const iv = base64UrlToBytes(ivB64);
+      const ciphertext = base64UrlToBytes(ciphertextB64);
+      const key = await deriveKey(password, salt);
+      const decryptedBuffer = await window.crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: iv },
+        key,
+        ciphertext
+      );
+      return new Uint8Array(decryptedBuffer);
+    }
+
+    // --- Compression Helpers ---
+    function compressString(text) {
+      if (!STATE.brotli) return null;
+      const enc = new TextEncoder();
+      const inputBytes = enc.encode(text);
+      return STATE.brotli.compress(inputBytes, { quality: 11 });
+    }
+
+    function decompressToString(bytes) {
+      if (!STATE.brotli) return null;
+      const decompressedBytes = STATE.brotli.decompress(bytes);
+      const dec = new TextDecoder();
+      return dec.decode(decompressedBytes);
+    }
+
+    // --- Sandboxed Preview HTML Template Generator ---
+    function generateSandboxSrcdoc(rawMarkdown, isDark) {
+      // Escape backticks and dollar signs in markdown for safe script injection
+      const escapedMarkdown = JSON.stringify(rawMarkdown);
+
+      return `<!DOCTYPE html>
+<html lang="en" class="${isDark ? 'dark' : ''}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com?plugins=typography"><\/script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#6366f1', 600: '#4f46e5' }
+          }
+        }
+      }
+    };
+  <\/script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${isDark ? 'github-dark' : 'github'}.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.1/marked.min.js"><\/script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"><\/script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"><\/script>
+  <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"><\/script>
+  <style>
+    body {
+      background-color: ${isDark ? '#020617' : '#ffffff'};
+      color: ${isDark ? '#f8fafc' : '#0f172a'};
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      padding: 24px;
+      margin: 0;
+    }
+    .mermaid-wrapper {
+      position: relative;
+      margin: 20px 0;
+      border: 1px solid ${isDark ? '#334155' : '#e2e8f0'};
+      border-radius: 12px;
+      background: ${isDark ? '#0f172a' : '#f8fafc'};
+      overflow: hidden;
+    }
+    .mermaid-controls {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 4px;
+      z-index: 10;
+      background: ${isDark ? 'rgba(30, 41, 59, 0.85)' : 'rgba(255, 255, 255, 0.85)'};
+      backdrop-filter: blur(4px);
+      padding: 3px 6px;
+      border-radius: 8px;
+      border: 1px solid ${isDark ? '#334155' : '#e2e8f0'};
+    }
+    .mermaid-controls button {
+      background: transparent;
+      border: none;
+      color: ${isDark ? '#94a3b8' : '#64748b'};
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .mermaid-controls button:hover {
+      color: ${isDark ? '#ffffff' : '#0f172a'};
+      background: ${isDark ? '#334155' : '#e2e8f0'};
+    }
+    .mermaid-viewport {
+      width: 100%;
+      min-height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow: hidden;
+      cursor: grab;
+    }
+    .mermaid-viewport:active {
+      cursor: grabbing;
+    }
+    .mermaid-viewport svg {
+      max-width: 100%;
+      height: auto;
+    }
+    pre code.hljs {
+      border-radius: 8px;
+      font-size: 13px;
+      padding: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+    th, td {
+      border: 1px solid ${isDark ? '#334155' : '#cbd5e1'};
+      padding: 8px 12px;
+    }
+    th {
+      background-color: ${isDark ? '#1e293b' : '#f1f5f9'};
+    }
+  </style>
+</head>
+<body class="prose ${isDark ? 'prose-invert' : ''} max-w-4xl mx-auto">
+  <div id="content"></div>
+
+  <script>
+    (async function() {
+      const rawMd = ${escapedMarkdown};
+      const isDark = ${isDark};
+
+      // Initialize Mermaid
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: isDark ? 'dark' : 'default',
+        securityLevel: 'loose',
+        fontFamily: 'Inter, system-ui, sans-serif'
+      });
+
+      // Configure marked with highlight.js
+      const renderer = new marked.Renderer();
+
+      // Custom code block renderer to intercept mermaid
+      const originalCodeRenderer = renderer.code.bind(renderer);
+      renderer.code = function(code, lang, escaped) {
+        if (lang === 'mermaid') {
+          const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
+          return \`
+            <div class="mermaid-wrapper not-prose" data-mermaid-id="\${id}">
+              <div class="mermaid-controls">
+                <button onclick="window.panzoomZoom('\${id}', 1.25)" title="Zoom In"><i class="fa-solid fa-plus"></i></button>
+                <button onclick="window.panzoomZoom('\${id}', 0.8)" title="Zoom Out"><i class="fa-solid fa-minus"></i></button>
+                <button onclick="window.panzoomReset('\${id}')" title="Reset Zoom"><i class="fa-solid fa-rotate-left"></i></button>
+                <button onclick="window.panzoomFullscreen('\${id}')" title="Fullscreen Inspector"><i class="fa-solid fa-expand"></i></button>
+              </div>
+              <div class="mermaid-viewport" id="viewport-\${id}">
+                <div class="mermaid-chart" id="\${id}">\${code}</div>
+              </div>
+            </div>
+          \`;
+        }
+
+        const validLang = !!(lang && hljs.getLanguage(lang));
+        const highlighted = validLang ? hljs.highlight(code, { language: lang }).value : hljs.highlightAuto(code).value;
+        return \`<pre><code class="hljs language-\${lang || ''}">\${highlighted}</code></pre>\`;
+      };
+
+      marked.setOptions({
+        renderer: renderer,
+        gfm: true,
+        breaks: true,
+        tables: true
+      });
+
+      document.getElementById('content').innerHTML = marked.parse(rawMd);
+
+      // Render Mermaid diagrams
+      const panzoomInstances = {};
+
+      window.panzoomZoom = function(id, factor) {
+        if (panzoomInstances[id]) {
+          panzoomInstances[id].zoomWithWheel({ deltaY: factor > 1 ? -100 : 100 });
+        }
+      };
+
+      window.panzoomReset = function(id) {
+        if (panzoomInstances[id]) {
+          panzoomInstances[id].reset();
+        }
+      };
+
+      window.panzoomFullscreen = function(id) {
+        const svgEl = document.querySelector('#' + id + ' svg');
+        if (svgEl) {
+          window.parent.postMessage({ type: 'MDSHARE_VIEW_DIAGRAM', svg: svgEl.outerHTML }, '*');
+        }
+      };
+
+      const mermaidNodes = document.querySelectorAll('.mermaid-chart');
+      for (const node of mermaidNodes) {
+        const id = node.id;
+        const code = node.textContent;
+        try {
+          const { svg } = await mermaid.render('svg-' + id, code);
+          node.innerHTML = svg;
+          const svgEl = node.querySelector('svg');
+          if (svgEl && window.Panzoom) {
+            const pz = Panzoom(svgEl, {
+              maxScale: 5,
+              minScale: 0.3,
+              contain: 'outside'
+            });
+            panzoomInstances[id] = pz;
+            node.parentElement.addEventListener('wheel', pz.zoomWithWheel);
+          }
+        } catch (err) {
+          node.innerHTML = '<div class="p-3 text-rose-500 text-xs font-mono bg-rose-50 dark:bg-rose-950/40 rounded">Mermaid Syntax Error: ' + err.message + '</div>';
+        }
+      }
+
+      // Notify parent that render is complete
+      window.parent.postMessage({ type: 'MDSHARE_RENDER_DONE' }, '*');
+    })();
+  <\/script>
+</body>
+</html>`;
+    }
+
+    // --- Core Editor & Preview Render Logic ---
+    let renderDebounceTimer = null;
+    let urlUpdateDebounceTimer = null;
+
+    function triggerRender() {
+      DOM.renderLoadingSpinner.classList.remove('hidden');
+      clearTimeout(renderDebounceTimer);
+      renderDebounceTimer = setTimeout(() => {
+        const markdown = DOM.markdownInput.value;
+        const isDark = STATE.theme === 'dark';
+        const doc = generateSandboxSrcdoc(markdown, isDark);
+        DOM.previewFrame.srcdoc = doc;
+      }, 150);
+    }
+
+    function updateEditorStats() {
+      const text = DOM.markdownInput.value;
+      const chars = text.length;
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      DOM.charCount.textContent = `${chars.toLocaleString()} chars`;
+      DOM.wordCount.textContent = `${words.toLocaleString()} words`;
+
+      // Update Line numbers
+      const lines = text.split('\n').length;
+      let lineNums = '';
+      for (let i = 1; i <= lines; i++) {
+        lineNums += i + '\n';
+      }
+      DOM.lineNumbers.textContent = lineNums;
+    }
+
+    function updateCursorPosition() {
+      const textarea = DOM.markdownInput;
+      const selStart = textarea.selectionStart;
+      const textUpToCursor = textarea.value.substring(0, selStart);
+      const lines = textUpToCursor.split('\n');
+      const curLine = lines.length;
+      const curCol = lines[lines.length - 1].length + 1;
+      DOM.cursorPos.textContent = `Ln ${curLine}, Col ${curCol}`;
+    }
+
+    // --- URL Sync & Hash Updating ---
+    async function updateUrlHash() {
+      if (!STATE.brotli) return;
+
+      const markdown = DOM.markdownInput.value;
+      if (!markdown.trim()) {
+        history.replaceState(null, '', window.location.pathname);
+        updateStatusDisplay('Empty Document', 'slate');
+        return;
+      }
+
+      try {
+        if (STATE.isEncrypted && STATE.currentPassword) {
+          // Encrypted flow
+          const compressedBytes = compressString(markdown);
+          const { salt, iv, ciphertext } = await encryptBytes(compressedBytes, STATE.currentPassword);
+          const hashVal = `code=enc.${salt}.${iv}.${ciphertext}`;
+          history.replaceState(null, '', `#${hashVal}`);
+          updateStatusDisplay('Protected & Synced', 'amber', true);
+        } else {
+          // Standard unencrypted flow
+          const compressed = compressString(markdown);
+          const b64 = bytesToBase64Url(compressed);
+          const hashVal = `code=${b64}`;
+          history.replaceState(null, '', `#${hashVal}`);
+          updateStatusDisplay('Synced to URL', 'emerald', false);
+        }
+      } catch (err) {
+        console.error('Error updating URL hash:', err);
+        updateStatusDisplay('Sync Error', 'rose');
+      }
+    }
+
+    function scheduleUrlUpdate() {
+      clearTimeout(urlUpdateDebounceTimer);
+      urlUpdateDebounceTimer = setTimeout(() => {
+        updateUrlHash();
+      }, 300);
+    }
+
+    function updateStatusDisplay(text, color, isEncrypted = false) {
+      DOM.statusText.textContent = text;
+      DOM.statusDot.className = `w-2 h-2 rounded-full ${
+        color === 'emerald' ? 'bg-emerald-500' :
+        color === 'amber' ? 'bg-amber-500' :
+        color === 'rose' ? 'bg-rose-500' : 'bg-slate-400'
+      }`;
+      if (isEncrypted) {
+        DOM.lockBadge.classList.remove('hidden');
+      } else {
+        DOM.lockBadge.classList.add('hidden');
+      }
+    }
+
+    // --- URL Hash Loading & State Initialization ---
+    async function loadFromUrlHash() {
+      const hash = window.location.hash.slice(1);
+      if (!hash) {
+        // No hash: load sample showcase
+        DOM.markdownInput.value = SAMPLE_MARKDOWN;
+        updateEditorStats();
+        triggerRender();
+        scheduleUrlUpdate();
+        return;
+      }
+
+      // Check format: #code=... or #/code=...
+      const match = hash.match(/(?:^|\/)?code=([^&]+)/);
+      if (!match) {
+        DOM.markdownInput.value = SAMPLE_MARKDOWN;
+        updateEditorStats();
+        triggerRender();
+        return;
+      }
+
+      const payload = match[1];
+
+      // Password-Protected payload check: enc.<salt>.<iv>.<ciphertext>
+      if (payload.startsWith('enc.')) {
+        const parts = payload.split('.');
+        if (parts.length === 4) {
+          STATE.isEncrypted = true;
+          STATE.encryptedPayload = {
+            salt: parts[1],
+            iv: parts[2],
+            ciphertext: parts[3]
+          };
+          // Show Decryption Modal
+          openDecryptModal();
+          return;
+        }
+      }
+
+      // Standard Unprotected Brotli payload
+      try {
+        const compressedBytes = base64UrlToBytes(payload);
+        const text = decompressToString(compressedBytes);
+        DOM.markdownInput.value = text;
+        STATE.isEncrypted = false;
+        STATE.currentPassword = '';
+        updateEditorStats();
+        triggerRender();
+        updateStatusDisplay('Loaded from URL', 'emerald', false);
+      } catch (err) {
+        console.error('Failed to decompress URL payload:', err);
+        showToast('Unable to decompress URL data. Starting with default document.', 'error');
+        DOM.markdownInput.value = SAMPLE_MARKDOWN;
+        updateEditorStats();
+        triggerRender();
+      }
+    }
+
+    // --- Decryption Workflow ---
+    function openDecryptModal() {
+      DOM.decryptModalBackdrop.classList.remove('hidden');
+      DOM.decryptPasswordInput.value = '';
+      DOM.decryptError.classList.add('hidden');
+      setTimeout(() => DOM.decryptPasswordInput.focus(), 100);
+    }
+
+    function closeDecryptModal() {
+      DOM.decryptModalBackdrop.classList.add('hidden');
+    }
+
+    DOM.decryptForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const password = DOM.decryptPasswordInput.value;
+      if (!password) return;
+
+      DOM.decryptError.classList.add('hidden');
+      const submitBtn = document.getElementById('btn-submit-decrypt');
+      const originalBtnText = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Unlocking...';
+
+      try {
+        const decryptedBytes = await decryptBytes(
+          STATE.encryptedPayload.ciphertext,
+          STATE.encryptedPayload.salt,
+          STATE.encryptedPayload.iv,
+          password
+        );
+        const text = decompressToString(decryptedBytes);
+
+        STATE.currentPassword = password;
+        STATE.isEncrypted = true;
+        DOM.markdownInput.value = text;
+        updateEditorStats();
+        triggerRender();
+        closeDecryptModal();
+        updateStatusDisplay('Unlocked & Synced', 'amber', true);
+        showToast('Document successfully unlocked!', 'success');
+      } catch (err) {
+        console.error('Decryption failed:', err);
+        DOM.decryptError.classList.remove('hidden');
+        DOM.decryptErrorText.textContent = 'Decryption failed. Incorrect password.';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+      }
+    });
+
+    DOM.btnCancelDecrypt.addEventListener('click', () => {
+      closeDecryptModal();
+      STATE.isEncrypted = false;
+      STATE.currentPassword = '';
+      DOM.markdownInput.value = SAMPLE_MARKDOWN;
+      updateEditorStats();
+      triggerRender();
+      scheduleUrlUpdate();
+      showToast('Loaded blank demo document.', 'info');
+    });
+
+    DOM.toggleDecryptPwVisibility.addEventListener('click', () => {
+      const input = DOM.decryptPasswordInput;
+      const isPass = input.type === 'password';
+      input.type = isPass ? 'text' : 'password';
+      DOM.toggleDecryptPwVisibility.innerHTML = isPass ? '<i class="fa-solid fa-eye-slash text-xs"></i>' : '<i class="fa-solid fa-eye text-xs"></i>';
+    });
+
+    // --- Share Modal & Link Generation ---
+    async function updateShareModalLink() {
+      if (!STATE.brotli) return;
+      const markdown = DOM.markdownInput.value;
+      const shouldEncrypt = DOM.toggleEncryptShare.checked;
+      const password = DOM.sharePassword.value;
+
+      try {
+        let fullUrl = '';
+        if (shouldEncrypt && password) {
+          const compressed = compressString(markdown);
+          const { salt, iv, ciphertext } = await encryptBytes(compressed, password);
+          fullUrl = `${window.location.origin}${window.location.pathname}#code=enc.${salt}.${iv}.${ciphertext}`;
+        } else {
+          const compressed = compressString(markdown);
+          const b64 = bytesToBase64Url(compressed);
+          fullUrl = `${window.location.origin}${window.location.pathname}#code=${b64}`;
+        }
+        DOM.shareUrlOutput.value = fullUrl;
+        DOM.linkSizeInfo.textContent = `URL Length: ${fullUrl.length.toLocaleString()} characters`;
+      } catch (err) {
+        console.error('Error calculating share link:', err);
+      }
+    }
+
+    DOM.btnOpenShareModal.addEventListener('click', async () => {
+      DOM.shareModalBackdrop.classList.remove('hidden');
+      setTimeout(() => {
+        DOM.shareModalCard.classList.remove('scale-95', 'opacity-0');
+        DOM.shareModalCard.classList.add('scale-100', 'opacity-100');
+      }, 10);
+
+      // Pre-fill existing encryption state if any
+      DOM.toggleEncryptShare.checked = STATE.isEncrypted;
+      if (STATE.isEncrypted) {
+        DOM.passwordInputGroup.classList.remove('hidden');
+        DOM.sharePassword.value = STATE.currentPassword;
+      } else {
+        DOM.passwordInputGroup.classList.add('hidden');
+        DOM.sharePassword.value = '';
+      }
+
+      await updateShareModalLink();
+    });
+
+    DOM.closeShareModal.addEventListener('click', () => {
+      DOM.shareModalCard.classList.add('scale-95', 'opacity-0');
+      DOM.shareModalCard.classList.remove('scale-100', 'opacity-100');
+      setTimeout(() => DOM.shareModalBackdrop.classList.add('hidden'), 150);
+    });
+
+    DOM.toggleEncryptShare.addEventListener('change', async () => {
+      if (DOM.toggleEncryptShare.checked) {
+        DOM.passwordInputGroup.classList.remove('hidden');
+        DOM.sharePassword.focus();
+      } else {
+        DOM.passwordInputGroup.classList.add('hidden');
+      }
+      await updateShareModalLink();
+    });
+
+    DOM.sharePassword.addEventListener('input', async () => {
+      await updateShareModalLink();
+    });
+
+    DOM.togglePwVisibility.addEventListener('click', () => {
+      const input = DOM.sharePassword;
+      const isPass = input.type === 'password';
+      input.type = isPass ? 'text' : 'password';
+      DOM.togglePwVisibility.innerHTML = isPass ? '<i class="fa-solid fa-eye-slash text-xs"></i>' : '<i class="fa-solid fa-eye text-xs"></i>';
+    });
+
+    DOM.btnCopyShareUrl.addEventListener('click', async () => {
+      // If user enabled password protection in modal, update state
+      if (DOM.toggleEncryptShare.checked) {
+        const pw = DOM.sharePassword.value;
+        if (!pw) {
+          showToast('Please enter a password to encrypt.', 'warning');
+          DOM.sharePassword.focus();
+          return;
+        }
+        STATE.isEncrypted = true;
+        STATE.currentPassword = pw;
+      } else {
+        STATE.isEncrypted = false;
+        STATE.currentPassword = '';
+      }
+
+      await updateUrlHash();
+      const url = DOM.shareUrlOutput.value || window.location.href;
+
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast('Share link copied to clipboard!', 'success');
+      } catch (e) {
+        DOM.shareUrlOutput.select();
+        document.execCommand('copy');
+        showToast('Link copied to clipboard!', 'success');
+      }
+    });
+
+    // --- Fullscreen Sandbox Preview (Blob URL in New Tab) ---
+    DOM.btnFullscreenPreview.addEventListener('click', () => {
+      const markdown = DOM.markdownInput.value;
+      const isDark = STATE.theme === 'dark';
+      const docHtml = generateSandboxSrcdoc(markdown, isDark);
+      const blob = new Blob([docHtml], { type: 'text/html' });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    });
+
+    // --- File Upload & Drag-and-Drop ---
+    DOM.btnUpload.addEventListener('click', () => {
+      DOM.fileUploadInput.click();
+    });
+
+    DOM.fileUploadInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleFileImport(file);
+      DOM.fileUploadInput.value = '';
+    });
+
+    function handleFileImport(file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        DOM.markdownInput.value = event.target.result;
+        updateEditorStats();
+        triggerRender();
+        scheduleUrlUpdate();
+        showToast(`Loaded ${file.name}`, 'success');
+      };
+      reader.onerror = () => {
+        showToast('Failed to read file.', 'error');
+      };
+      reader.readAsText(file);
+    }
+
+    // Drag-and-drop onto editor
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      DOM.dragDropOverlay.classList.remove('hidden');
+    });
+    window.addEventListener('dragleave', (e) => {
+      if (e.relatedTarget === null || e.clientX === 0 && e.clientY === 0) {
+        DOM.dragDropOverlay.classList.add('hidden');
+      }
+    });
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      DOM.dragDropOverlay.classList.add('hidden');
+      if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+        handleFileImport(e.dataTransfer.files[0]);
+      }
+    });
+
+    // --- Export & Download Features ---
+    DOM.btnDownload.addEventListener('click', (e) => {
+      e.stopPropagation();
+      DOM.downloadMenu.classList.toggle('hidden');
+    });
+    document.addEventListener('click', () => {
+      DOM.downloadMenu.classList.add('hidden');
+    });
+
+    DOM.exportMd.addEventListener('click', () => {
+      const text = DOM.markdownInput.value;
+      const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+      triggerFileDownload(blob, 'document.md');
+      showToast('Downloaded document.md', 'info');
+    });
+
+    DOM.exportHtml.addEventListener('click', () => {
+      const markdown = DOM.markdownInput.value;
+      const isDark = STATE.theme === 'dark';
+      const docHtml = generateSandboxSrcdoc(markdown, isDark);
+      const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
+      triggerFileDownload(blob, 'md-share-export.html');
+      showToast('Downloaded md-share-export.html', 'info');
+    });
+
+    function triggerFileDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // --- Dedicated Clean Print View ---
+    DOM.btnPrint.addEventListener('click', () => {
+      // Extract the rendered HTML from iframe or compile clean prose
+      const iframeDoc = DOM.previewFrame.contentDocument || DOM.previewFrame.contentWindow.document;
+      const content = iframeDoc ? iframeDoc.getElementById('content') : null;
+      if (content) {
+        DOM.printMountPoint.innerHTML = `
+          <div class="prose max-w-none">
+            ${content.innerHTML}
+          </div>
+        `;
+      } else {
+        DOM.printMountPoint.innerHTML = `<pre>${escapeHtml(DOM.markdownInput.value)}</pre>`;
+      }
+      window.print();
+    });
+
+    // --- Theme Management ---
+    function applyTheme(newTheme) {
+      STATE.theme = newTheme;
+      localStorage.setItem('mdshare-theme', newTheme);
+      if (newTheme === 'dark') {
+        DOM.html.classList.add('dark');
+      } else {
+        DOM.html.classList.remove('dark');
+      }
+      triggerRender();
+    }
+
+    DOM.btnThemeToggle.addEventListener('click', () => {
+      applyTheme(STATE.theme === 'dark' ? 'light' : 'dark');
+    });
+
+    // --- Layout & View Mode Switcher ---
+    function setViewMode(mode) {
+      STATE.viewMode = mode;
+      localStorage.setItem('mdshare-viewmode', mode);
+
+      // Reset button highlights
+      [DOM.viewModeSplit, DOM.viewModeEditor, DOM.viewModePreview].forEach(btn => {
+        btn.className = 'px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white';
+      });
+
+      if (mode === 'split') {
+        DOM.viewModeSplit.className = 'px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm font-semibold';
+        DOM.editorPanel.classList.remove('hidden');
+        DOM.previewPanel.classList.remove('hidden');
+        DOM.splitGutter.classList.remove('hidden');
+        DOM.editorPanel.style.width = `${STATE.splitPercent}%`;
+        DOM.previewPanel.style.width = `${100 - STATE.splitPercent}%`;
+      } else if (mode === 'editor') {
+        DOM.viewModeEditor.className = 'px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm font-semibold';
+        DOM.editorPanel.classList.remove('hidden');
+        DOM.previewPanel.classList.add('hidden');
+        DOM.splitGutter.classList.add('hidden');
+        DOM.editorPanel.style.width = '100%';
+      } else if (mode === 'preview') {
+        DOM.viewModePreview.className = 'px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm font-semibold';
+        DOM.editorPanel.classList.add('hidden');
+        DOM.previewPanel.classList.remove('hidden');
+        DOM.splitGutter.classList.add('hidden');
+        DOM.previewPanel.style.width = '100%';
+      }
+    }
+
+    DOM.viewModeSplit.addEventListener('click', () => setViewMode('split'));
+    DOM.viewModeEditor.addEventListener('click', () => setViewMode('editor'));
+    DOM.viewModePreview.addEventListener('click', () => setViewMode('preview'));
+
+    // --- Resizable Split Screen Drag Handler ---
+    DOM.splitGutter.addEventListener('mousedown', (e) => {
+      STATE.isDraggingSplit = true;
+      DOM.splitGutter.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'col-resize';
+      // Disable pointer events on iframe during drag to prevent mouse capturing
+      DOM.previewFrame.style.pointerEvents = 'none';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!STATE.isDraggingSplit || STATE.viewMode !== 'split') return;
+      const containerWidth = DOM.html.clientWidth;
+      const leftWidth = e.clientX;
+      const percent = Math.max(20, Math.min(80, (leftWidth / containerWidth) * 100));
+      STATE.splitPercent = percent;
+      DOM.editorPanel.style.width = `${percent}%`;
+      DOM.previewPanel.style.width = `${100 - percent}%`;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (STATE.isDraggingSplit) {
+        STATE.isDraggingSplit = false;
+        DOM.splitGutter.classList.remove('dragging');
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        DOM.previewFrame.style.pointerEvents = 'auto';
+      }
+    });
+
+    // --- Editor Keydown Enhancements (Tab, Indentation, Auto-Closing Pairs) ---
+    const AUTO_CLOSE_PAIRS = {
+      '(': ')',
+      '[': ']',
+      '{': '}',
+      '`': '`',
+      '"': '"',
+      "'": "'"
+    };
+
+    DOM.markdownInput.addEventListener('keydown', (e) => {
+      const textarea = DOM.markdownInput;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const value = textarea.value;
+
+      // Tab key indent
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const tabString = '  '; // 2 spaces
+        if (!e.shiftKey) {
+          if (start === end) {
+            textarea.setRangeText(tabString, start, end, 'end');
+          } else {
+            // Indent selected block
+            const before = value.substring(0, start);
+            const lineStart = before.lastIndexOf('\n') + 1;
+            const after = value.substring(end);
+            const selectedText = value.substring(lineStart, end);
+            const lines = selectedText.split('\n');
+            const indented = lines.map(l => tabString + l).join('\n');
+            textarea.value = value.substring(0, lineStart) + indented + after;
+            textarea.setSelectionRange(start + tabString.length, lineStart + indented.length);
+          }
+        } else {
+          // Outdent
+          const before = value.substring(0, start);
+          const lineStart = before.lastIndexOf('\n') + 1;
+          const after = value.substring(end);
+          const selectedText = value.substring(lineStart, end);
+          const lines = selectedText.split('\n');
+          const outdented = lines.map(l => l.startsWith('  ') ? l.slice(2) : l.startsWith('\t') ? l.slice(1) : l).join('\n');
+          textarea.value = value.substring(0, lineStart) + outdented + after;
+          textarea.setSelectionRange(Math.max(lineStart, start - 2), lineStart + outdented.length);
+        }
+        updateEditorStats();
+        triggerRender();
+        scheduleUrlUpdate();
+        return;
+      }
+
+      // Auto-closing quotes/brackets
+      if (AUTO_CLOSE_PAIRS[e.key]) {
+        const closeChar = AUTO_CLOSE_PAIRS[e.key];
+        if (start !== end) {
+          // Wrap selection
+          e.preventDefault();
+          const selectedText = value.substring(start, end);
+          textarea.setRangeText(e.key + selectedText + closeChar, start, end, 'end');
+          textarea.setSelectionRange(start + 1, end + 1);
+          updateEditorStats();
+          triggerRender();
+          scheduleUrlUpdate();
+          return;
+        } else if (e.key === '`' || e.key === '(' || e.key === '[' || e.key === '{') {
+          e.preventDefault();
+          textarea.setRangeText(e.key + closeChar, start, end, 'end');
+          textarea.setSelectionRange(start + 1, start + 1);
+          updateEditorStats();
+          triggerRender();
+          scheduleUrlUpdate();
+          return;
+        }
+      }
+
+      // Skip closing char if already typed
+      if (start === end && Object.values(AUTO_CLOSE_PAIRS).includes(e.key) && value[start] === e.key) {
+        e.preventDefault();
+        textarea.setSelectionRange(start + 1, start + 1);
+        return;
+      }
+
+      // Enter key automatic indentation
+      if (e.key === 'Enter') {
+        const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+        const currentLine = value.substring(lineStart, start);
+        const match = currentLine.match(/^(\s+)/);
+        if (match) {
+          e.preventDefault();
+          const indent = match[1];
+          textarea.setRangeText('\n' + indent, start, end, 'end');
+          updateEditorStats();
+          triggerRender();
+          scheduleUrlUpdate();
+          return;
+        }
+      }
+    });
+
+    DOM.markdownInput.addEventListener('input', () => {
+      updateEditorStats();
+      updateCursorPosition();
+      triggerRender();
+      scheduleUrlUpdate();
+    });
+
+    DOM.markdownInput.addEventListener('click', updateCursorPosition);
+    DOM.markdownInput.addEventListener('keyup', updateCursorPosition);
+
+    // Sync scroll between textarea and line numbers
+    DOM.markdownInput.addEventListener('scroll', () => {
+      DOM.lineNumbers.scrollTop = DOM.markdownInput.scrollTop;
+    });
+
+    // Helper Buttons
+    DOM.sampleGuideBtn.addEventListener('click', () => {
+      DOM.markdownInput.value = SAMPLE_MARKDOWN;
+      STATE.isEncrypted = false;
+      STATE.currentPassword = '';
+      updateEditorStats();
+      triggerRender();
+      scheduleUrlUpdate();
+      showToast('Loaded demo showcase document', 'info');
+    });
+
+    DOM.clearEditorBtn.addEventListener('click', () => {
+      if (confirm('Clear the editor?')) {
+        DOM.markdownInput.value = '';
+        STATE.isEncrypted = false;
+        STATE.currentPassword = '';
+        updateEditorStats();
+        triggerRender();
+        scheduleUrlUpdate();
+      }
+    });
+
+    DOM.refreshPreviewBtn.addEventListener('click', () => {
+      triggerRender();
+      showToast('Preview refreshed', 'info');
+    });
+
+    // --- Message Listener from Sandbox Iframe ---
+    let currentModalPanzoom = null;
+
+    window.addEventListener('message', (event) => {
+      if (!event.data) return;
+
+      if (event.data.type === 'MDSHARE_RENDER_DONE') {
+        DOM.renderLoadingSpinner.classList.add('hidden');
+      }
+
+      if (event.data.type === 'MDSHARE_VIEW_DIAGRAM') {
+        const svgContent = event.data.svg;
+        DOM.diagramModalBody.innerHTML = svgContent;
+        DOM.diagramModalBackdrop.classList.remove('hidden');
+
+        const svgEl = DOM.diagramModalBody.querySelector('svg');
+        if (svgEl) {
+          svgEl.style.maxWidth = '100%';
+          svgEl.style.maxHeight = '100%';
+          if (window.Panzoom) {
+            currentModalPanzoom = window.Panzoom(svgEl, {
+              maxScale: 10,
+              minScale: 0.2
+            });
+            DOM.diagramModalBody.addEventListener('wheel', currentModalPanzoom.zoomWithWheel);
+          }
+        }
+      }
+    });
+
+    DOM.closeDiagramModal.addEventListener('click', () => {
+      DOM.diagramModalBackdrop.classList.add('hidden');
+      DOM.diagramModalBody.innerHTML = '';
+      currentModalPanzoom = null;
+    });
+
+    DOM.diagramModalDownloadSvg.addEventListener('click', () => {
+      const svgEl = DOM.diagramModalBody.querySelector('svg');
+      if (svgEl) {
+        const blob = new Blob([svgEl.outerHTML], { type: 'image/svg+xml;charset=utf-8' });
+        triggerFileDownload(blob, 'diagram.svg');
+        showToast('Downloaded diagram.svg', 'info');
+      }
+    });
+
+    // --- App Initialization ---
+    async function init() {
+      applyTheme(STATE.theme);
+      setViewMode(STATE.viewMode);
+
+      try {
+        // Initialize Brotli WASM
+        const resolvedBrotli = await brotliPromise;
+        STATE.brotli = resolvedBrotli;
+        console.log('MD-Share: Brotli WASM initialized successfully.');
+
+        // Load document from URL hash if available
+        await loadFromUrlHash();
+      } catch (err) {
+        console.error('Failed to initialize MD-Share:', err);
+        showToast('WASM Initialization failed, using fallback.', 'warning');
+        DOM.markdownInput.value = SAMPLE_MARKDOWN;
+        updateEditorStats();
+        triggerRender();
+      }
+    }
+
+    // Run on startup
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
