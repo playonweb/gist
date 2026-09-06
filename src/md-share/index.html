@@ -239,33 +239,6 @@ Disable-Footer: true
     </div>
   </header>
 
-  <!-- DEDICATED FULL-WIDTH SHAREABLE URL BAR (Always Visible) -->
-  <div id="shareable-url-banner" class="bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-100 dark:border-indigo-900/60 px-4 py-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 z-20 shrink-0 select-none">
-    <div class="flex items-center gap-2 min-w-0">
-      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-600 text-white font-semibold text-[11px] tracking-wide uppercase shadow-xs shrink-0">
-        <i class="fa-solid fa-link text-[10px]"></i> Shareable Link
-      </span>
-      <span class="text-xs text-slate-500 dark:text-slate-400 hidden lg:inline">Real-time Zero-Backend URL:</span>
-      <!-- Direct Readonly URL Display Input -->
-      <div class="relative flex-1 min-w-0 max-w-2xl flex items-center">
-        <input type="text" id="banner-share-url-input" readonly value="Generating shareable link..." class="w-full pl-7 pr-3 py-1 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800/80 rounded-lg text-xs font-mono text-indigo-950 dark:text-indigo-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 select-all cursor-pointer shadow-xs" title="Click or select to copy shareable URL" />
-        <i class="fa-solid fa-earth-americas absolute left-2.5 text-[11px] text-indigo-400 dark:text-indigo-500 pointer-events-none"></i>
-      </div>
-    </div>
-
-    <!-- Quick Action Buttons -->
-    <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
-      <button id="banner-btn-copy-url" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-medium text-xs rounded-lg shadow-xs flex items-center gap-1.5 transition-all" title="Copy Shareable Link to clipboard">
-        <i class="fa-solid fa-copy"></i>
-        <span>Copy Link</span>
-      </button>
-      <button id="banner-btn-options" class="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-medium text-xs rounded-lg shadow-xs flex items-center gap-1.5 transition-all" title="Password & Sharing options">
-        <i class="fa-solid fa-lock text-indigo-500"></i>
-        <span class="hidden sm:inline">Protect / Options</span>
-      </button>
-    </div>
-  </div>
-
   <!-- MAIN WORKSPACE CONTAINER -->
   <main id="main-app-container" class="flex-1 flex flex-col md:flex-row relative min-h-0 overflow-hidden">
     
@@ -533,11 +506,6 @@ Disable-Footer: true
       statusDot: document.getElementById('status-dot'),
       statusText: document.getElementById('status-text'),
       lockBadge: document.getElementById('lock-badge'),
-      btnQuickCopyUrl: document.getElementById('btn-quick-copy-url'),
-      headerShareUrlText: document.getElementById('header-share-url-text'),
-      bannerShareUrlInput: document.getElementById('banner-share-url-input'),
-      bannerBtnCopyUrl: document.getElementById('banner-btn-copy-url'),
-      bannerBtnOptions: document.getElementById('banner-btn-options'),
       fileUploadInput: document.getElementById('file-upload-input'),
       btnUpload: document.getElementById('btn-upload'),
       btnDownload: document.getElementById('btn-download'),
@@ -1130,18 +1098,8 @@ async function decryptPayload(ciphertext, salt, iv, password) {
     async function updateUrlHash() {
       const markdown = DOM.markdownInput.value || '';
       if (!markdown.trim()) {
-        const emptyUrl = `${window.location.origin}${window.location.pathname}#raw=`;
         history.replaceState(null, '', '#raw=');
         updateStatusDisplay('Empty Document', 'slate');
-        if (DOM.bannerShareUrlInput) {
-          DOM.bannerShareUrlInput.value = emptyUrl;
-        }
-        if (DOM.headerShareUrlText) {
-          DOM.headerShareUrlText.textContent = emptyUrl;
-        }
-        if (DOM.shareUrlOutput) {
-          DOM.shareUrlOutput.value = emptyUrl;
-        }
         return;
       }
 
@@ -1150,14 +1108,6 @@ async function decryptPayload(ciphertext, salt, iv, password) {
         const hashIdx = shareUrl.indexOf('#');
         const hash = hashIdx !== -1 ? shareUrl.slice(hashIdx) : '';
         history.replaceState(null, '', hash || window.location.pathname);
-
-        // Update banner and header visible URL inputs
-        if (DOM.bannerShareUrlInput) {
-          DOM.bannerShareUrlInput.value = shareUrl;
-        }
-        if (DOM.headerShareUrlText) {
-          DOM.headerShareUrlText.textContent = shareUrl;
-        }
 
         // Update modal URL output if present
         if (DOM.shareUrlOutput && (!DOM.toggleEncryptShare || !DOM.toggleEncryptShare.checked)) {
@@ -1215,6 +1165,9 @@ async function decryptPayload(ciphertext, salt, iv, password) {
         await updateUrlHash();
         return;
       }
+
+      // If there's a payload in the URL, default to preview mode
+      setViewMode('preview');
 
       // Check raw uncompressed payload first
       if (rawPayload !== null) {
@@ -1363,18 +1316,17 @@ async function decryptPayload(ciphertext, salt, iv, password) {
       }
     }
 
-    // Quick Copy from Banner & Header Buttons
+    // Quick Copy from Header Button
     async function copyCurrentShareUrl() {
+      let fullUrl = window.location.href;
       try {
-        const fullUrl = await generateCurrentShareUrl(STATE.isEncrypted, STATE.currentPassword);
+        fullUrl = await generateCurrentShareUrl(STATE.isEncrypted, STATE.currentPassword);
         // Ensure browser hash is also up to date
         const hashIdx = fullUrl.indexOf('#');
         if (hashIdx !== -1) {
           history.replaceState(null, '', fullUrl.slice(hashIdx));
         }
-        if (DOM.bannerShareUrlInput) {
-          DOM.bannerShareUrlInput.value = fullUrl;
-        }
+        
         if (DOM.headerShareUrlText) {
           DOM.headerShareUrlText.textContent = fullUrl;
         }
@@ -1383,9 +1335,6 @@ async function decryptPayload(ciphertext, salt, iv, password) {
         showToast('Full Shareable URL copied to clipboard!', 'success');
       } catch (err) {
         // Fallback
-        const fullUrl = (DOM.bannerShareUrlInput && DOM.bannerShareUrlInput.value.includes('#')) 
-          ? DOM.bannerShareUrlInput.value 
-          : window.location.href;
         const tempInput = document.createElement('input');
         tempInput.value = fullUrl;
         document.body.appendChild(tempInput);
@@ -1396,21 +1345,8 @@ async function decryptPayload(ciphertext, salt, iv, password) {
       }
     }
 
-    if (DOM.bannerBtnCopyUrl) {
-      DOM.bannerBtnCopyUrl.addEventListener('click', copyCurrentShareUrl);
-    }
     if (DOM.btnQuickCopyUrl) {
       DOM.btnQuickCopyUrl.addEventListener('click', copyCurrentShareUrl);
-    }
-    if (DOM.bannerShareUrlInput) {
-      DOM.bannerShareUrlInput.addEventListener('click', () => {
-        DOM.bannerShareUrlInput.select();
-      });
-    }
-    if (DOM.bannerBtnOptions) {
-      DOM.bannerBtnOptions.addEventListener('click', () => {
-        DOM.btnOpenShareModal.click();
-      });
     }
 
     DOM.btnOpenShareModal.addEventListener('click', async () => {
@@ -1481,12 +1417,6 @@ async function decryptPayload(ciphertext, salt, iv, password) {
       const hashIdx = fullUrl.indexOf('#');
       if (hashIdx !== -1) {
         history.replaceState(null, '', fullUrl.slice(hashIdx));
-      }
-      if (DOM.bannerShareUrlInput) {
-        DOM.bannerShareUrlInput.value = fullUrl;
-      }
-      if (DOM.headerShareUrlText) {
-        DOM.headerShareUrlText.textContent = fullUrl;
       }
 
       try {
